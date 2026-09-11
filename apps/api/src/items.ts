@@ -3,6 +3,23 @@ import { type DbRow, HttpError, readDbString } from "./shared";
 
 const PREVIEW_TIMEOUT_MS = 5000;
 const PREVIEW_BODY_LIMIT = 256 * 1024;
+const MAX_CATEGORIES_PER_USER = 10;
+const MAX_ITEMS_PER_CATEGORY = 100;
+const MAX_ITEM_NAME_LENGTH = 24;
+const MAX_CATEGORY_NAME_LENGTH = 12;
+const MAX_ITEM_URL_LENGTH = 2048;
+const MAX_ITEM_OBSERVATION_LENGTH = 2000;
+const DEFAULT_CATEGORY_COLOR = "#38BDF8";
+const CATEGORY_COLORS = new Set([
+  "#38BDF8",
+  "#A78BFA",
+  "#FB7185",
+  "#FBBF24",
+  "#4ADE80",
+  "#FB923C",
+  "#818CF8",
+  "#A3E635"
+]);
 
 export interface ItemPreview {
   title: string | null;
@@ -13,28 +30,119 @@ export interface ItemPreview {
 export interface ItemRecord {
   id: string;
   name: string;
-  url: string;
+  url: string | null;
   imageUrl: string | null;
   faviconUrl: string | null;
   observation: string | null;
-  category: { id: string; name: string };
+  category: { id: string; name: string; color: string } | null;
   createdAt: string;
   updatedAt: string;
 }
 
+export interface CategoryRecord {
+  id: string;
+  name: string;
+  color: string;
+  itemCount: number;
+}
+
 export interface CreateItemInput {
   name: string;
-  url: string;
-  categoryName: string;
+  url: string | null;
+  categoryName: string | null;
+  categoryColor: string;
   observation: string | null;
+}
+
+export interface CategoryInput {
+  name: string;
+  color: string;
+}
+
+export async function listCategories(db: Client, userId: string): Promise<CategoryRecord[]> {
+  const result = await db.execute({
+    sql: `SELECT c.id, c.name, c.color, COUNT(i.id) AS item_count
+      FROM categories c
+      LEFT JOIN items i ON i.category_id = c.id AND i.user_id = c.user_id
+      WHERE c.user_id = ?
+      GROUP BY c.id, c.name, c.color
+      ORDER BY c.name COLLATE NOCASE ASC`,
+    args: [userId]
+  });
+  return result.rows.map(mapCategoryRow);
+}
+
+export async function createCategory(db: Client, userId: string, payload: unknown): Promise<CategoryRecord> {
+  const input = parseCategoryInput(payload);
+  const normalizedName = normalizeCategoryName(input.name);
+  const existing = await db.execute({
+    sql: "SELECT id FROM categories WHERE user_id = ? AND normalized_name = ? LIMIT 1",
+    args: [userId, normalizedName]
+  });
+  if (existing.rows.length > 0) throw new HttpError(400, "category_name_taken");
+
+  const categoryCount = await db.execute({
+    sql: "SELECT COUNT(*) AS category_count FROM categories WHERE user_id = ?",
+    args: [userId]
+  });
+  if (readDbCount(categoryCount.rows[0], "category_count") >= MAX_CATEGORIES_PER_USER) {
+    throw new HttpError(400, "category_limit_reached");
+  }
+
+  const id = crypto.randomUUID();
+  await db.execute({
+    sql: `INSERT INTO categories (id, user_id, name, normalized_name, color)
+      VALUES (?, ?, ?, ?, ?)`,
+    args: [id, userId, input.name, normalizedName, input.color]
+  });
+  return getCategory(db, userId, id);
+}
+
+export async function updateCategory(db: Client, userId: string, categoryId: string, payload: unknown): Promise<CategoryRecord> {
+  const input = parseCategoryInput(payload);
+  const normalizedName = normalizeCategoryName(input.name);
+  const current = await db.execute({
+    sql: "SELECT id FROM categories WHERE id = ? AND user_id = ? LIMIT 1",
+    args: [categoryId, userId]
+  });
+  if (current.rows.length === 0) throw new HttpError(404, "category_not_found");
+
+  const duplicate = await db.execute({
+    sql: "SELECT id FROM categories WHERE user_id = ? AND normalized_name = ? AND id <> ? LIMIT 1",
+    args: [userId, normalizedName, categoryId]
+  });
+  if (duplicate.rows.length > 0) throw new HttpError(400, "category_name_taken");
+
+  await db.execute({
+    sql: `UPDATE categories
+      SET name = ?, normalized_name = ?, color = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?`,
+    args: [input.name, normalizedName, input.color, categoryId, userId]
+  });
+  return getCategory(db, userId, categoryId);
+}
+
+export async function deleteCategory(db: Client, userId: string, categoryId: string): Promise<{ id: string }> {
+  const result = await db.execute({
+    sql: "SELECT id FROM categories WHERE id = ? AND user_id = ? LIMIT 1",
+    args: [categoryId, userId]
+  });
+  const row = result.rows[0] as DbRow | undefined;
+  if (!row) throw new HttpError(404, "category_not_found");
+
+  await db.execute({
+    sql: "DELETE FROM categories WHERE id = ? AND user_id = ?",
+    args: [categoryId, userId]
+  });
+  return { id: categoryId };
 }
 
 export async function listItems(db: Client, userId: string): Promise<ItemRecord[]> {
   const result = await db.execute({
     sql: `SELECT i.id, i.name, i.url, i.image_url, i.favicon_url, i.observation,
-      i.created_at, i.updated_at, c.id AS category_id, c.name AS category_name
+      i.created_at, i.updated_at, c.id AS category_id, c.name AS category_name, c.color AS category_color
       FROM items i
-      INNER JOIN categories c ON c.id = i.category_id AND c.user_id = i.user_id
+      LEFT JOIN categories c ON c.id = i.category_id AND c.user_id = i.user_id
       WHERE i.user_id = ?
       ORDER BY i.created_at DESC, i.id DESC`,
     args: [userId]
@@ -44,21 +152,22 @@ export async function listItems(db: Client, userId: string): Promise<ItemRecord[
 
 export async function createItem(db: Client, userId: string, payload: unknown): Promise<ItemRecord> {
   const input = parseCreateItemInput(payload);
-  const preview = await resolveLinkPreview(input.url);
-  const category = await findOrCreateCategory(db, userId, input.categoryName);
+  const category = input.categoryName ? await findOrCreateCategory(db, userId, input.categoryName, input.categoryColor) : null;
+  if (category) await ensureCategoryItemCapacity(db, userId, category.id);
+  const preview = input.url ? await resolveLinkPreview(input.url) : { title: null, imageUrl: null, faviconUrl: null };
   const itemId = crypto.randomUUID();
 
   await db.execute({
     sql: `INSERT INTO items (id, user_id, category_id, name, url, image_url, favicon_url, observation)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [itemId, userId, category.id, input.name, input.url, preview.imageUrl, preview.faviconUrl, input.observation]
+    args: [itemId, userId, category?.id ?? null, input.name, input.url, preview.imageUrl, preview.faviconUrl, input.observation]
   });
 
   const result = await db.execute({
     sql: `SELECT i.id, i.name, i.url, i.image_url, i.favicon_url, i.observation,
-      i.created_at, i.updated_at, c.id AS category_id, c.name AS category_name
+      i.created_at, i.updated_at, c.id AS category_id, c.name AS category_name, c.color AS category_color
       FROM items i
-      INNER JOIN categories c ON c.id = i.category_id AND c.user_id = i.user_id
+      LEFT JOIN categories c ON c.id = i.category_id AND c.user_id = i.user_id
       WHERE i.id = ? AND i.user_id = ?
       LIMIT 1`,
     args: [itemId, userId]
@@ -109,14 +218,23 @@ export async function resolveLinkPreview(sourceUrl: string): Promise<ItemPreview
 export function parseCreateItemInput(payload: unknown): CreateItemInput {
   const source = readObject(payload);
   const name = normalizeText(readRequiredString(source.name, "name"));
-  const url = readUrl(source.url);
-  const categoryName = normalizeText(readRequiredString(source.categoryName, "categoryName"));
+  const url = readOptionalUrl(source.url);
+  const categoryName = source.categoryName == null ? null : normalizeText(readRequiredString(source.categoryName, "categoryName")) || null;
+  const categoryColor = categoryName ? readCategoryColor(source.categoryColor) : DEFAULT_CATEGORY_COLOR;
   const observation = source.observation == null ? null : normalizeText(readRequiredString(source.observation, "observation")) || null;
 
-  if (name.length < 1 || name.length > 120) throw new HttpError(400, "invalid_item_name");
-  if (categoryName.length < 1 || categoryName.length > 60) throw new HttpError(400, "invalid_category_name");
-  if (observation && observation.length > 2000) throw new HttpError(400, "invalid_item_observation");
-  return { name, url, categoryName, observation };
+  if (name.length < 1 || name.length > MAX_ITEM_NAME_LENGTH) throw new HttpError(400, "invalid_item_name");
+  if (categoryName && categoryName.length > MAX_CATEGORY_NAME_LENGTH) throw new HttpError(400, "invalid_category_name");
+  if (observation && observation.length > MAX_ITEM_OBSERVATION_LENGTH) throw new HttpError(400, "invalid_item_observation");
+  return { name, url, categoryName, categoryColor, observation };
+}
+
+export function parseCategoryInput(payload: unknown): CategoryInput {
+  const source = readObject(payload);
+  const name = normalizeText(readRequiredString(source.name, "category_name"));
+  const color = readCategoryColor(source.color);
+  if (name.length < 1 || name.length > MAX_CATEGORY_NAME_LENGTH) throw new HttpError(400, "invalid_category_name");
+  return { name, color };
 }
 
 function readObject(payload: unknown): Record<string, unknown> {
@@ -136,7 +254,17 @@ function readUrl(value: unknown): string {
   return trimmed;
 }
 
+function readOptionalUrl(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value !== "string") throw new HttpError(400, "invalid_url");
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  parseHttpUrl(trimmed);
+  return trimmed;
+}
+
 function parseHttpUrl(value: string): URL {
+  if (value.length > MAX_ITEM_URL_LENGTH) throw new HttpError(400, "invalid_url_length");
   let parsed: URL;
   try { parsed = new URL(value); } catch { throw new HttpError(400, "invalid_url"); }
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new HttpError(400, "invalid_url");
@@ -152,43 +280,110 @@ function normalizeCategoryName(value: string): string {
   return normalizeText(value).toLowerCase();
 }
 
-async function findOrCreateCategory(db: Client, userId: string, name: string): Promise<{ id: string; name: string }> {
+async function findOrCreateCategory(db: Client, userId: string, name: string, color: string): Promise<{ id: string; name: string; color: string }> {
   const normalizedName = normalizeCategoryName(name);
   const existing = await db.execute({
-    sql: "SELECT id, name FROM categories WHERE user_id = ? AND normalized_name = ? LIMIT 1",
+    sql: "SELECT id, name, color FROM categories WHERE user_id = ? AND normalized_name = ? LIMIT 1",
     args: [userId, normalizedName]
   });
   const existingRow = existing.rows[0] as DbRow | undefined;
-  if (existingRow) return { id: readDbString(existingRow, "id"), name: readDbString(existingRow, "name") };
+  if (existingRow) {
+    const id = readDbString(existingRow, "id");
+    await db.execute({
+      sql: "UPDATE categories SET color = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
+      args: [color, id, userId]
+    });
+    return { id, name: readDbString(existingRow, "name"), color };
+  }
+
+  const categoryCount = await db.execute({
+    sql: "SELECT COUNT(*) AS category_count FROM categories WHERE user_id = ?",
+    args: [userId]
+  });
+  if (readDbCount(categoryCount.rows[0], "category_count") >= MAX_CATEGORIES_PER_USER) {
+    throw new HttpError(400, "category_limit_reached");
+  }
 
   await db.execute({
-    sql: `INSERT INTO categories (id, user_id, name, normalized_name)
-      VALUES (?, ?, ?, ?)
+    sql: `INSERT INTO categories (id, user_id, name, normalized_name, color)
+      VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(user_id, normalized_name) DO NOTHING`,
-    args: [crypto.randomUUID(), userId, name, normalizedName]
+    args: [crypto.randomUUID(), userId, name, normalizedName, color]
   });
 
   const created = await db.execute({
-    sql: "SELECT id, name FROM categories WHERE user_id = ? AND normalized_name = ? LIMIT 1",
+    sql: "SELECT id, name, color FROM categories WHERE user_id = ? AND normalized_name = ? LIMIT 1",
     args: [userId, normalizedName]
   });
   const row = created.rows[0] as DbRow | undefined;
   if (!row) throw new HttpError(500, "category_creation_failed");
-  return { id: readDbString(row, "id"), name: readDbString(row, "name") };
+  return { id: readDbString(row, "id"), name: readDbString(row, "name"), color: readCategoryColor(row.color) };
+}
+
+async function getCategory(db: Client, userId: string, categoryId: string): Promise<CategoryRecord> {
+  const result = await db.execute({
+    sql: `SELECT c.id, c.name, c.color, COUNT(i.id) AS item_count
+      FROM categories c
+      LEFT JOIN items i ON i.category_id = c.id AND i.user_id = c.user_id
+      WHERE c.id = ? AND c.user_id = ?
+      GROUP BY c.id, c.name, c.color
+      LIMIT 1`,
+    args: [categoryId, userId]
+  });
+  const row = result.rows[0] as DbRow | undefined;
+  if (!row) throw new HttpError(404, "category_not_found");
+  return mapCategoryRow(row);
+}
+
+async function ensureCategoryItemCapacity(db: Client, userId: string, categoryId: string): Promise<void> {
+  const itemCount = await db.execute({
+    sql: "SELECT COUNT(*) AS item_count FROM items WHERE user_id = ? AND category_id = ?",
+    args: [userId, categoryId]
+  });
+  if (readDbCount(itemCount.rows[0], "item_count") >= MAX_ITEMS_PER_CATEGORY) {
+    throw new HttpError(400, "category_item_limit_reached");
+  }
 }
 
 function mapItemRow(row: DbRow): ItemRecord {
+  const categoryId = readNullableString(row, "category_id");
+  const categoryName = readNullableString(row, "category_name");
   return {
     id: readDbString(row, "id"),
     name: readDbString(row, "name"),
-    url: readDbString(row, "url"),
+    url: readNullableString(row, "url"),
     imageUrl: readNullableString(row, "image_url"),
     faviconUrl: readNullableString(row, "favicon_url"),
     observation: readNullableString(row, "observation"),
-    category: { id: readDbString(row, "category_id"), name: readDbString(row, "category_name") },
+    category: categoryId && categoryName ? { id: categoryId, name: categoryName, color: readCategoryColor(row.category_color) } : null,
     createdAt: readDbString(row, "created_at"),
     updatedAt: readDbString(row, "updated_at")
   };
+}
+
+function mapCategoryRow(row: DbRow): CategoryRecord {
+  return {
+    id: readDbString(row, "id"),
+    name: readDbString(row, "name"),
+    color: readCategoryColor(row.color),
+    itemCount: readDbCount(row, "item_count")
+  };
+}
+
+function readCategoryColor(value: unknown): string {
+  if (typeof value !== "string" || !CATEGORY_COLORS.has(value)) {
+    if (value == null) return DEFAULT_CATEGORY_COLOR;
+    throw new HttpError(400, "invalid_category_color");
+  }
+  return value;
+}
+
+function readDbCount(row: DbRow | undefined, key: string): number {
+  const value = row?.[key];
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "string" && Number.isFinite(Number(value))) return Number(value);
+  throw new HttpError(500, `invalid_db_${key}`);
 }
 
 function readNullableString(row: DbRow, key: string): string | null {

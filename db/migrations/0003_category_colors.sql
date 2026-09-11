@@ -1,0 +1,3 @@
+PRAGMA foreign_keys = ON;
+
+ALTER TABLE categories ADD COLUMN color TEXT NOT NULL DEFAULT '#38BDF8';

@@ -1,34 +1,42 @@
 import { useCallback, useEffect, useRef, useState, type AnimationEvent, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { LoaderCircle, X } from "lucide-react";
-import { useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
+import { Copy, Globe, LoaderCircle, MoveRight, X } from "lucide-react";
+import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
 import { ApiError, apiRequest } from "../../lib/api";
-import type { CloudyItem, ItemPreview } from "../../types/api";
+import type { CategorySummary, CloudyItem, ItemPreview } from "../../types/api";
 import { FallbackImage } from "./ItemGraph";
+import { DEFAULT_CATEGORY_COLOR, getCategoryColorStyle } from "./category-colors";
 
 interface ItemDialogProps {
   open: boolean;
-  categoryNames: string[];
+  categoryOptions: CategorySummary[];
   onClose: () => void;
   onCreated: (item: CloudyItem) => void;
   onClosingChange?: (closing: boolean) => void;
 }
 
 const ITEM_DIALOG_EXIT_DURATION = 220;
+const MAX_ITEM_NAME_LENGTH = 24;
+const MAX_ITEM_URL_LENGTH = 2048;
+const MAX_ITEM_OBSERVATION_LENGTH = 2000;
 
-export function ItemDialog({ open, categoryNames, onClose, onCreated, onClosingChange }: ItemDialogProps) {
+export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosingChange }: ItemDialogProps) {
   const [url, setUrl] = useState("");
   const [name, setName] = useState("");
   const [categoryName, setCategoryName] = useState("");
+  const [categoryColor, setCategoryColor] = useState(DEFAULT_CATEGORY_COLOR);
   const [observation, setObservation] = useState("");
   const [preview, setPreview] = useState<ItemPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewMessage, setPreviewMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showRequiredError, setShowRequiredError] = useState(false);
   const nameTouched = useRef(false);
   const previewRequestId = useRef(0);
   const urlInputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const categoryGroupRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const [shouldRender, setShouldRender] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
@@ -59,6 +67,7 @@ export function ItemDialog({ open, categoryNames, onClose, onCreated, onClosingC
   }, [onClose, startExit]);
 
   const drawerGesture = useMobileDrawerGesture(requestClose);
+  useMobileDrawerBodyLock(shouldRender);
 
   const handleExitAnimationEnd = (event: AnimationEvent<HTMLElement>) => {
     if (!isClosing || event.target !== event.currentTarget) return;
@@ -87,11 +96,13 @@ export function ItemDialog({ open, categoryNames, onClose, onCreated, onClosingC
     setUrl("");
     setName("");
     setCategoryName("");
+    setCategoryColor(DEFAULT_CATEGORY_COLOR);
     setObservation("");
     setPreview(null);
     setPreviewMessage(null);
     setError(null);
     setSaving(false);
+    setShowRequiredError(false);
     nameTouched.current = false;
     const previousActiveElement = document.activeElement as HTMLElement | null;
     const focusTimer = window.setTimeout(() => urlInputRef.current?.focus(), 0);
@@ -123,6 +134,10 @@ export function ItemDialog({ open, categoryNames, onClose, onCreated, onClosingC
 
   if (!shouldRender) return null;
 
+  const missingRequiredFields = [
+    !name.trim() ? "Nome" : null
+  ].filter((field): field is string => field !== null);
+
   const loadPreview = async () => {
     if (!url.trim()) return;
     const requestId = ++previewRequestId.current;
@@ -137,25 +152,38 @@ export function ItemDialog({ open, categoryNames, onClose, onCreated, onClosingC
     } catch (previewError) {
       if (requestId !== previewRequestId.current) return;
       setPreview(null);
-      setPreviewMessage(formatItemError(previewError, "Não conseguimos ler a prévia agora. Você ainda pode salvar o link."));
+    setPreviewMessage(formatItemError(previewError, "Não conseguimos ler a prévia agora. Você ainda pode salvar o item sem prévia."));
     } finally {
       if (requestId === previewRequestId.current) setPreviewLoading(false);
     }
   };
 
+  const selectCategory = (category: CategorySummary) => {
+    setCategoryName(category.name);
+    setCategoryColor(category.color);
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+
+    if (missingRequiredFields.length > 0) {
+      setShowRequiredError(true);
+       if (!name.trim()) nameInputRef.current?.focus();
+      return;
+    }
+
+    setShowRequiredError(false);
     setSaving(true);
     try {
       const item = await apiRequest<CloudyItem>("/items", {
         method: "POST",
-        body: JSON.stringify({ name, url, categoryName, observation: observation.trim() || undefined })
+        body: JSON.stringify({ name, url: url.trim() || undefined, categoryName, categoryColor, observation: observation.trim() || undefined })
       });
       onCreated(item);
       requestClose();
     } catch (submitError) {
-      setError(formatItemError(submitError, "Não foi possível salvar este link agora."));
+      setError(formatItemError(submitError, "Não foi possível salvar este item agora."));
     } finally {
       setSaving(false);
     }
@@ -167,40 +195,111 @@ export function ItemDialog({ open, categoryNames, onClose, onCreated, onClosingC
         <div className="mobile-drawer-handle" aria-hidden="true" {...drawerGesture.handleProps} />
         <button className="item-dialog-close" type="button" aria-label="Fechar cadastro" onClick={requestClose}><X aria-hidden="true" /></button>
         <div className="item-dialog-heading">
-          <span className="item-dialog-kicker">Nova referência</span>
-          <h2 id="item-dialog-title">Adicionar link</h2>
-          <p>Guarde algo que merece voltar para a sua nuvem.</p>
+          <h2 id="item-dialog-title">Criar item</h2>
+          <p>Preencha os dados abaixo</p>
         </div>
-        <form onSubmit={submit}>
-          <label className="field-label" htmlFor="item-url">Link</label>
-          <input ref={urlInputRef} id="item-url" className="field-input" type="url" required placeholder="https://..." value={url} onChange={(event) => setUrl(event.target.value)} onBlur={() => void loadPreview()} />
+        <form noValidate onSubmit={submit}>
+          <div className="item-live-preview" aria-label="Prévia do card">
+            <FallbackImage src={preview?.imageUrl ?? null} alt="" className="item-live-preview-image" />
+            <div className="item-live-preview-content">
+              <div className="item-live-preview-source">
+                <FallbackImage src={preview?.faviconUrl ?? null} alt="" className="item-live-preview-favicon" />
+                <span className="item-live-preview-category" style={getCategoryColorStyle(categoryColor)}>
+                  <span aria-hidden="true" />
+                  <span>{categoryName || "Sua nova tag"}</span>
+                </span>
+              </div>
+              <input
+                ref={nameInputRef}
+                id="item-name"
+                className="item-live-preview-title-input"
+                type="text"
+                required
+                aria-invalid={showRequiredError && !name.trim()}
+                aria-describedby={showRequiredError && missingRequiredFields.length > 0 ? "item-required-fields-error" : undefined}
+                minLength={1}
+                maxLength={MAX_ITEM_NAME_LENGTH}
+                aria-label="Nome"
+                placeholder={preview?.title || "Nome do item"}
+                value={name}
+                onChange={(event) => { nameTouched.current = true; setName(event.target.value); }}
+              />
+              <textarea
+                id="item-observation"
+                className="item-live-preview-observation"
+                maxLength={MAX_ITEM_OBSERVATION_LENGTH}
+                rows={2}
+                aria-label="Observação (opcional)"
+                placeholder="Adicione uma nota..."
+                value={observation}
+                onChange={(event) => setObservation(event.target.value)}
+              />
+              {url.trim() && (
+                <div className="item-live-preview-actions" aria-hidden="true">
+                  <span className="item-live-preview-action"><Globe aria-hidden="true" /><span>Acessar</span></span>
+                  <span className="item-live-preview-action item-live-preview-action--icon"><Copy aria-hidden="true" /></span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <label className="field-label" htmlFor="item-url">Link <span>(opcional)</span></label>
+          <div className="item-url-field field-with-character-count">
+            <input ref={urlInputRef} id="item-url" className="field-input" type="url" maxLength={MAX_ITEM_URL_LENGTH} placeholder="https://..." value={url} onChange={(event) => { setUrl(event.target.value); if (!event.target.value.trim()) { previewRequestId.current += 1; setPreview(null); setPreviewMessage(null); setPreviewLoading(false); } }} onBlur={() => void loadPreview()} />
+            <span className="field-character-count" aria-hidden="true">{url.length}/{MAX_ITEM_URL_LENGTH}</span>
+          </div>
           {previewLoading && <p className="field-hint field-hint--loading"><LoaderCircle aria-hidden="true" /> Lendo a prévia...</p>}
           {previewMessage && <p className="field-hint">{previewMessage}</p>}
 
-          {preview && (
-            <div className="item-preview" aria-live="polite">
-              <FallbackImage src={preview.imageUrl} alt="" className="item-preview-image" />
-              <div>
-                <strong>{preview.title || "Prévia do link"}</strong>
-                <span>{preview.faviconUrl ? "Imagem e favicon encontrados" : "Usaremos o visual padrão do Cloudy"}</span>
-              </div>
-              <FallbackImage src={preview.faviconUrl} alt="" className="item-preview-favicon" />
-            </div>
+          <div className="item-category-heading">
+            <span className="field-label">Tag</span>
+            <span className="field-label"><span>Opcional</span></span>
+          </div>
+          <div
+            ref={categoryGroupRef}
+            className="category-orbit"
+            role="group"
+            aria-label="Escolha uma tag existente"
+            tabIndex={-1}
+          >
+            <div className="category-orbit-glow" aria-hidden="true" />
+            <div className="category-orbit-ring category-orbit-ring--one" aria-hidden="true" />
+            <div className="category-orbit-ring category-orbit-ring--two" aria-hidden="true" />
+            <button
+              className={`category-orbit-tag category-orbit-tag--untagged${!categoryName ? " category-orbit-tag--selected" : ""}`}
+              type="button"
+              aria-pressed={!categoryName}
+              style={getCategoryColorStyle(DEFAULT_CATEGORY_COLOR)}
+              onClick={() => { setCategoryName(""); setCategoryColor(DEFAULT_CATEGORY_COLOR); }}
+              >
+                <span className="category-orbit-dot" aria-hidden="true" />
+                <span>Sem tag</span>
+            </button>
+            {categoryOptions.map((category, index) => (
+              <button
+                className={`category-orbit-tag category-orbit-tag--${index % 4}${categoryName.localeCompare(category.name, "pt-BR", { sensitivity: "base" }) === 0 ? " category-orbit-tag--selected" : ""}`}
+                key={category.id}
+                type="button"
+                aria-pressed={categoryName.localeCompare(category.name, "pt-BR", { sensitivity: "base" }) === 0}
+                style={getCategoryColorStyle(category.color)}
+                onClick={() => selectCategory(category)}
+              >
+                <span className="category-orbit-dot" aria-hidden="true" />
+                <span>{category.name}</span>
+              </button>
+            ))}
+          </div>
+
+          {showRequiredError && missingRequiredFields.length > 0 && (
+            <p className="item-required-fields" id="item-required-fields-error" role="alert">
+              <span className="item-required-fields-label">Preencha <MoveRight aria-hidden="true" /></span>
+              <span className="item-required-field">{missingRequiredFields.join(" e ")}</span>
+              <span className="item-required-marker" aria-hidden="true" />
+            </p>
           )}
-
-          <label className="field-label" htmlFor="item-name">Nome</label>
-          <input id="item-name" className="field-input" type="text" required minLength={1} maxLength={120} placeholder="Como você quer lembrar disso?" value={name} onChange={(event) => { nameTouched.current = true; setName(event.target.value); }} />
-
-          <label className="field-label" htmlFor="item-category">Categoria</label>
-          <input id="item-category" className="field-input" type="text" required maxLength={60} list="item-category-options" placeholder="Ex.: Inspirações" value={categoryName} onChange={(event) => setCategoryName(event.target.value)} />
-          <datalist id="item-category-options">{categoryNames.map((category) => <option key={category} value={category} />)}</datalist>
-
-          <label className="field-label" htmlFor="item-observation">Observação <span>opcional</span></label>
-          <textarea id="item-observation" className="field-input field-textarea" maxLength={2000} placeholder="Uma nota curta para o seu eu do futuro..." value={observation} onChange={(event) => setObservation(event.target.value)} />
-
-          {error && <p className="item-dialog-error" role="alert">{error}</p>}
-          <button className="item-dialog-submit" type="submit" disabled={saving}>
-            {saving ? <><LoaderCircle aria-hidden="true" /> Salvando...</> : "Salvar na nuvem"}
+          {error && <p className="item-dialog-error" role="alert"><span>{error}</span><span className="item-required-marker" aria-hidden="true" /></p>}
+          <button className="item-dialog-submit" type="submit" disabled={saving} aria-label={saving ? "Salvando..." : "Salvar"}>
+            {saving ? <><LoaderCircle className="item-dialog-submit-loader" aria-hidden="true" /> Salvando...</> : "Salvar"}
           </button>
         </form>
       </section>
@@ -214,9 +313,12 @@ function formatItemError(error: unknown, fallback: string): string {
   const messages: Record<string, string> = {
     invalid_json: "Confira os dados informados.",
     invalid_url: "Informe um link válido começando com http:// ou https://.",
-    invalid_item_name: "Escolha um nome de até 120 caracteres.",
-    invalid_category_name: "Informe uma categoria de até 60 caracteres.",
-    invalid_item_observation: "A observação deve ter até 2.000 caracteres."
+    invalid_url_length: "O link deve ter até 2.048 caracteres.",
+    invalid_item_name: "Escolha um nome de até 24 caracteres.",
+    invalid_category_name: "Informe uma categoria de até 12 caracteres.",
+    invalid_item_observation: "A observação deve ter até 2.000 caracteres.",
+    category_limit_reached: "Você pode criar até 10 categorias.",
+    category_item_limit_reached: "Essa categoria já tem 100 itens."
   };
   return messages[error.code] || fallback;
 }

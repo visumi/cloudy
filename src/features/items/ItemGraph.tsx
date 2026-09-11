@@ -1,10 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type AnimationEvent, type ReactNode } from "react";
-import { ExternalLink, X } from "lucide-react";
-import { useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
+import { createPortal } from "react-dom";
+import { Check, Copy, Globe, X } from "lucide-react";
+import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
 import type { CloudyItem } from "../../types/api";
 import { buildItemGraphLayout } from "./item-graph";
+import { DEFAULT_CATEGORY_COLOR, getCategoryColorStyle } from "./category-colors";
 
 const FALLBACK_IMAGE = "/cloudy-icon.png";
+
+async function copyToClipboard(value: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) throw new Error("Não foi possível copiar o link");
+}
 
 interface ItemGraphProps {
   items: CloudyItem[];
@@ -49,14 +69,14 @@ export function ItemGraph({ items, isLoading, error, onRetry, onAddLink, onDetai
             key={item.id}
             type="button"
             style={{ left: `${left}%`, top: `${top}%` }}
-            aria-label={`${item.name}, categoria ${item.category.name}`}
+            aria-label={`${item.name}, ${item.category ? `categoria ${item.category.name}` : "sem tag"}`}
             aria-pressed={selectedItemId === item.id}
             onClick={() => { setSelectedItemId(item.id); setDetailItem(item); }}
           >
             <FallbackImage src={item.imageUrl} alt="" className="item-node-image" />
             <span className="item-node-copy">
               <strong>{item.name}</strong>
-              <small>{item.category.name}</small>
+            <small className="item-node-category" style={getCategoryColorStyle(item.category?.color ?? DEFAULT_CATEGORY_COLOR)}><span aria-hidden="true" /><span>{item.category?.name ?? "Sem tag"}</span></small>
             </span>
           </button>
         ))}
@@ -85,7 +105,9 @@ const ITEM_DETAIL_EXIT_DURATION = 200;
 function ItemDetail({ item, open, onClose, onExited }: { item: CloudyItem; open: boolean; onClose: () => void; onExited: () => void }) {
   const [shouldRender, setShouldRender] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
   const exitTimerRef = useRef<number | undefined>(undefined);
+  const copyTimerRef = useRef<number | undefined>(undefined);
   const closingRef = useRef(false);
 
   const finishExit = useCallback(() => {
@@ -111,6 +133,8 @@ function ItemDetail({ item, open, onClose, onExited }: { item: CloudyItem; open:
   }, [onClose, startExit]);
 
   const drawerGesture = useMobileDrawerGesture(requestClose);
+  useMobileDrawerBodyLock(shouldRender);
+  const category = item.category;
 
   const handleExitAnimationEnd = (event: AnimationEvent<HTMLElement>) => {
     if (!isClosing || event.target !== event.currentTarget) return;
@@ -131,29 +155,54 @@ function ItemDetail({ item, open, onClose, onExited }: { item: CloudyItem; open:
 
   useEffect(() => () => {
     if (exitTimerRef.current !== undefined) window.clearTimeout(exitTimerRef.current);
+    if (copyTimerRef.current !== undefined) window.clearTimeout(copyTimerRef.current);
   }, []);
+
+  const handleCopy = useCallback(async () => {
+    if (!item.url) return;
+    try {
+      await copyToClipboard(item.url);
+      setIsCopied(true);
+      if (copyTimerRef.current !== undefined) window.clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = window.setTimeout(() => {
+        setIsCopied(false);
+        copyTimerRef.current = undefined;
+      }, 1800);
+    } catch {
+      setIsCopied(false);
+    }
+  }, [item.url]);
 
   if (!shouldRender) return null;
 
-  return (
+  return createPortal(
     <div className="item-detail-backdrop" data-closing={isClosing || undefined} role="presentation" onClick={requestClose}>
-      <section className="item-detail-panel" data-closing={isClosing || undefined} data-dragging={drawerGesture.isDragging || undefined} style={drawerGesture.panelStyle} onAnimationEnd={handleExitAnimationEnd} role="dialog" aria-modal="true" aria-labelledby="item-detail-title" onClick={(event) => event.stopPropagation()}>
-        <div className="mobile-drawer-handle" aria-hidden="true" {...drawerGesture.handleProps} />
+      <section className="item-detail-panel" data-closing={isClosing || undefined} data-dragging={drawerGesture.isDragging || undefined} style={{ ...drawerGesture.panelStyle, ...getCategoryColorStyle(category?.color ?? DEFAULT_CATEGORY_COLOR) }} onAnimationEnd={handleExitAnimationEnd} role="dialog" aria-modal="true" aria-labelledby="item-detail-title" onClick={(event) => event.stopPropagation()} {...drawerGesture.panelProps}>
+        <div className="mobile-drawer-handle" aria-hidden="true" />
         <button className="item-detail-close" type="button" aria-label="Fechar detalhes" onClick={requestClose}><X aria-hidden="true" /></button>
         <FallbackImage src={item.imageUrl} alt="" className="item-detail-image" />
         <div className="item-detail-content">
           <div className="item-detail-source">
             <FallbackImage src={item.faviconUrl} alt="" className="item-detail-favicon" />
-            <span className="item-detail-category">{item.category.name}</span>
+            <span className="item-detail-category" style={getCategoryColorStyle(category?.color ?? DEFAULT_CATEGORY_COLOR)}><span aria-hidden="true" /><span>{category?.name ?? "Sem tag"}</span></span>
           </div>
           <h2 id="item-detail-title">{item.name}</h2>
           {item.observation && <p>{item.observation}</p>}
-          <a href={item.url} target="_blank" rel="noreferrer">
-            Abrir referência <ExternalLink aria-hidden="true" />
-          </a>
+          {item.url && (
+            <div className="item-detail-actions">
+              <a href={item.url} target="_blank" rel="noreferrer" title="Acessar">
+                <Globe aria-hidden="true" />
+                <span>Acessar</span>
+              </a>
+              <button className="item-detail-copy" type="button" aria-label={isCopied ? "Link copiado" : "Copiar link"} title={isCopied ? "Link copiado" : "Copiar link"} onClick={() => void handleCopy()}>
+                {isCopied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+              </button>
+            </div>
+          )}
         </div>
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }
 

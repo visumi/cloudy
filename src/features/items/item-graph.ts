@@ -20,15 +20,18 @@ export interface ItemGraphLayout {
   nodes: GraphNode[];
 }
 
+const UNTAGGED_CATEGORY_ID = "__untagged__";
+
 export function buildItemGraphLayout(items: CloudyItem[]): ItemGraphLayout {
   const grouped = new Map<string, CloudyItem[]>();
   for (const item of items) {
-    const group = grouped.get(item.category.id) || [];
+    const groupKey = item.category?.id ?? UNTAGGED_CATEGORY_ID;
+    const group = grouped.get(groupKey) || [];
     group.push(item);
-    grouped.set(item.category.id, group);
+    grouped.set(groupKey, group);
   }
 
-  const categories = [...grouped.entries()].sort(([, first], [, second]) => first[0].category.name.localeCompare(second[0].category.name, "pt-BR"));
+  const categories = [...grouped.entries()].sort(([, first], [, second]) => getCategoryName(first[0]).localeCompare(getCategoryName(second[0]), "pt-BR"));
   const clusters: GraphCluster[] = [];
   const nodes: GraphNode[] = [];
 
@@ -36,7 +39,7 @@ export function buildItemGraphLayout(items: CloudyItem[]): ItemGraphLayout {
     const angle = -Math.PI / 2 + (categoryIndex * Math.PI * 2) / Math.max(categories.length, 1);
     const clusterLeft = clamp(50 + Math.cos(angle) * (categories.length === 1 ? 0 : 31), 14, 86);
     const clusterTop = clamp(48 + Math.sin(angle) * (categories.length === 1 ? 25 : 27), 16, 80);
-    const cluster = { categoryId, categoryName: categoryItems[0].category.name, left: clusterLeft, top: clusterTop };
+    const cluster = { categoryId, categoryName: getCategoryName(categoryItems[0]), left: clusterLeft, top: clusterTop };
     clusters.push(cluster);
 
     const orderedItems = [...categoryItems].sort((first, second) => first.createdAt.localeCompare(second.createdAt) || first.id.localeCompare(second.id));
@@ -54,6 +57,10 @@ export function buildItemGraphLayout(items: CloudyItem[]): ItemGraphLayout {
   });
 
   return { clusters, nodes };
+}
+
+function getCategoryName(item: CloudyItem): string {
+  return item.category?.name ?? "Sem tag";
 }
 
 function clamp(value: number, min: number, max: number): number {

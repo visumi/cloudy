@@ -15,17 +15,25 @@ export interface ItemPreview {
   faviconUrl: string | null;
 }
 
+export interface CategorySummary {
+  id: string;
+  name: string;
+  color: string;
+  itemCount?: number;
+}
+
+export interface CategoriesResponse {
+  categories: CategorySummary[];
+}
+
 export interface CloudyItem {
   id: string;
   name: string;
-  url: string;
+  url: string | null;
   imageUrl: string | null;
   faviconUrl: string | null;
   observation: string | null;
-  category: {
-    id: string;
-    name: string;
-  };
+  category: CategorySummary | null;
   createdAt: string;
   updatedAt: string;
 }

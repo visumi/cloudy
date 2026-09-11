@@ -31,27 +31,30 @@ const mockedApiRequest = vi.mocked(apiRequest);
 describe("CloudyShell", () => {
   it("oculta o dock enquanto o drawer de adicionar link está aberto", async () => {
     mockedApiRequest.mockResolvedValueOnce({ items: [] });
+    mockedApiRequest.mockResolvedValueOnce({ categories: [] });
     const { container } = render(<CloudyShell />);
     const dock = container.querySelector(".action-cloud-dock")!;
 
     await waitFor(() => expect(mockedApiRequest).toHaveBeenCalledWith("/items"));
     fireEvent.click(screen.getByRole("button", { name: "Adicionar referência" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Adicionar link" }));
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(dock).toHaveClass("action-cloud-dock--hidden");
     expect(dock).toHaveAttribute("aria-hidden", "true");
+    expect(container.querySelector("main")).toHaveAttribute("inert");
 
     fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
     expect(dock).toHaveClass("action-cloud-dock--hidden");
     await waitFor(() => {
       expect(dock).not.toHaveClass("action-cloud-dock--hidden");
       expect(dock).toHaveAttribute("aria-hidden", "false");
+      expect(container.querySelector("main")).not.toHaveAttribute("inert");
     });
   });
 
   it("oculta o dock enquanto o detalhe de um item está aberto", async () => {
     mockedApiRequest.mockResolvedValueOnce({ items: [] });
+    mockedApiRequest.mockResolvedValueOnce({ categories: [] });
     const { container } = render(<CloudyShell />);
     const dock = container.querySelector(".action-cloud-dock")!;
 
@@ -60,9 +63,11 @@ describe("CloudyShell", () => {
 
     expect(dock).toHaveClass("action-cloud-dock--hidden");
     expect(dock).toHaveAttribute("aria-hidden", "true");
+    expect(container.querySelector("main")).toHaveAttribute("inert");
 
     fireEvent.click(screen.getByRole("button", { name: "Fechar detalhe" }));
     expect(dock).not.toHaveClass("action-cloud-dock--hidden");
     expect(dock).toHaveAttribute("aria-hidden", "false");
+    expect(container.querySelector("main")).not.toHaveAttribute("inert");
   });
 });

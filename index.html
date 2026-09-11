@@ -36,11 +36,11 @@
         justify-items: center;
         gap: 24px;
       }
-      .boot-loading-logo {
+      .boot-loading-content .brand-name {
         display: block;
-        width: min(52vw, 220px);
-        height: auto;
-        object-fit: contain;
+        color: #e0f2fe;
+        font: 500 clamp(3rem, 18vw, 5.5rem)/.9 "DynaPuff", system-ui, sans-serif;
+        letter-spacing: -.055em;
       }
       .boot-loading-progress {
         position: relative;
@@ -99,7 +99,7 @@
   <body>
     <div id="boot-loading" role="status" aria-label="Carregando o Cloudy">
       <div class="boot-loading-content" aria-hidden="true">
-        <img class="boot-loading-logo" src="/cloudy-logo.png" alt="" />
+        <span class="brand-name">cloudy</span>
         <div class="boot-loading-progress" aria-hidden="true"><span></span></div>
         <div class="boot-loading-message" aria-hidden="true">
           <span>Aquecendo a nuvem...</span>

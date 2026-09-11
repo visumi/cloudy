@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentProps } from "react";
-import { Blocks, CircleUser, FileText, ImagePlus, Link2, LogOut, Plus, Settings, Share2, UsersRound, type LucideIcon } from "lucide-react";
+import { Blocks, CircleUser, Link2, LogOut, Plus, Settings, Share2, Tags, UsersRound, type LucideIcon } from "lucide-react";
 import packageJson from "../../../package.json";
 import { Badge } from "../../components/ui/badge";
 import { DropdownMenu, DropdownMenuItem } from "../../components/ui/dropdown-menu";
@@ -9,13 +9,14 @@ interface CloudActionCloudProps {
   email?: string | null;
   name?: string | null;
   onAddLink?: () => void;
+  onTagsOpen?: () => void;
   onSignOut?: () => Promise<void>;
   onMenuOpenChange?: (isOpen: boolean) => void;
   photoURL?: string | null;
   disabled?: boolean;
 }
 
-type CloudMenu = "settings" | "add" | "share";
+type CloudMenu = "settings" | "share";
 
 interface CloudMenuItem {
   icon: LucideIcon;
@@ -27,14 +28,6 @@ const cloudMenus: Record<CloudMenu, { items: CloudMenuItem[]; title: string }> =
     title: "Configurações",
     items: []
   },
-  add: {
-    title: "Adicionar",
-    items: [
-      { icon: Link2, label: "Adicionar link" },
-      { icon: FileText, label: "Criar nota" },
-      { icon: ImagePlus, label: "Adicionar imagem" }
-    ]
-  },
   share: {
     title: "Compartilhar",
     items: [
@@ -44,7 +37,7 @@ const cloudMenus: Record<CloudMenu, { items: CloudMenuItem[]; title: string }> =
   }
 };
 
-export function CloudActionCloud({ email, name, onAddLink, onSignOut, onMenuOpenChange, photoURL, disabled = false }: CloudActionCloudProps) {
+export function CloudActionCloud({ email, name, onAddLink, onTagsOpen, onSignOut, onMenuOpenChange, photoURL, disabled = false }: CloudActionCloudProps) {
   const [openMenu, setOpenMenu] = useState<CloudMenu | null>(null);
   const [closingMenu, setClosingMenu] = useState<CloudMenu | null>(null);
   const [profileImageFailed, setProfileImageFailed] = useState(false);
@@ -122,11 +115,8 @@ export function CloudActionCloud({ email, name, onAddLink, onSignOut, onMenuOpen
         <IconButton
           tone="add"
           label="Adicionar referência"
-          aria-haspopup="menu"
-          aria-expanded={openMenu === "add"}
-          aria-controls="cloud-action-menu-add"
           disabled={disabled}
-          onClick={() => toggleMenu("add")}
+          onClick={() => { closeMenu(); onAddLink?.(); }}
         >
           <Plus aria-hidden="true" strokeWidth={2.5} />
         </IconButton>
@@ -144,12 +134,12 @@ export function CloudActionCloud({ email, name, onAddLink, onSignOut, onMenuOpen
           <Share2 aria-hidden="true" strokeWidth={2.2} />
         </IconButton>
       </div>
-      {renderedMenu && <CloudMenuPanel menu={renderedMenu} id={`cloud-action-menu-${renderedMenu}`} closing={isClosing} email={email} name={name} onAddLink={onAddLink} onClose={closeMenu} onSignOut={onSignOut} photoURL={photoURL} profileImageFailed={profileImageFailed} setProfileImageFailed={setProfileImageFailed} onAnimationEnd={(event) => { if (isClosing && event.animationName === "dropdown-menu-close") setClosingMenu(null); }} />}
+      {renderedMenu && <CloudMenuPanel menu={renderedMenu} id={`cloud-action-menu-${renderedMenu}`} closing={isClosing} email={email} name={name} onAddLink={onAddLink} onTagsOpen={onTagsOpen} onClose={closeMenu} onSignOut={onSignOut} photoURL={photoURL} profileImageFailed={profileImageFailed} setProfileImageFailed={setProfileImageFailed} onAnimationEnd={(event) => { if (isClosing && event.animationName === "dropdown-menu-close") setClosingMenu(null); }} />}
     </div>
   );
 }
 
-function CloudMenuPanel({ menu, id, closing, email, name, onAddLink, onClose, onSignOut, photoURL, profileImageFailed, setProfileImageFailed, onAnimationEnd }: { menu: CloudMenu; id: string; closing: boolean; email?: string | null; name?: string | null; onAddLink?: () => void; onClose: () => void; onSignOut?: () => Promise<void>; photoURL?: string | null; profileImageFailed: boolean; setProfileImageFailed: (failed: boolean) => void; onAnimationEnd: ComponentProps<typeof DropdownMenu>["onAnimationEnd"]; }) {
+function CloudMenuPanel({ menu, id, closing, email, name, onAddLink, onTagsOpen, onClose, onSignOut, photoURL, profileImageFailed, setProfileImageFailed, onAnimationEnd }: { menu: CloudMenu; id: string; closing: boolean; email?: string | null; name?: string | null; onAddLink?: () => void; onTagsOpen?: () => void; onClose: () => void; onSignOut?: () => Promise<void>; photoURL?: string | null; profileImageFailed: boolean; setProfileImageFailed: (failed: boolean) => void; onAnimationEnd: ComponentProps<typeof DropdownMenu>["onAnimationEnd"]; }) {
   const content = cloudMenus[menu];
 
   return (
@@ -172,13 +162,14 @@ function CloudMenuPanel({ menu, id, closing, email, name, onAddLink, onClose, on
               <span className="dropdown-menu-account-email">{formatAccountEmail(email)}</span>
             </div>
           </div>
+          <DropdownMenuItem icon={Tags} onClick={() => { onClose(); onTagsOpen?.(); }}>Tags</DropdownMenuItem>
           <DropdownMenuItem icon={Blocks} onClick={onClose}>Integrações</DropdownMenuItem>
           <DropdownMenuItem icon={LogOut} destructive onClick={() => { onClose(); void onSignOut?.(); }}>Sair</DropdownMenuItem>
         </div>
       ) : (
         <div className="dropdown-menu-items">
           {content.items.map(({ icon: Icon, label }) => (
-            <DropdownMenuItem icon={Icon} key={label} onClick={() => { onClose(); if (menu === "add" && label === "Adicionar link") onAddLink?.(); }}>{label}</DropdownMenuItem>
+            <DropdownMenuItem icon={Icon} key={label} onClick={onClose}>{label}</DropdownMenuItem>
           ))}
         </div>
       )}
