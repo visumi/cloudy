@@ -34,4 +34,8 @@ jobs:
           trap 'rm -f .worker-secrets.json' EXIT
           node -e 'require("fs").writeFileSync(".worker-secrets.json", JSON.stringify(Object.fromEntries(["TURSO_URL","TURSO_AUTH_TOKEN","FIREBASE_PROJECT_ID","OWNER_EMAIL"].map((name) => [name, process.env[name]]))))'
           npx wrangler secret bulk .worker-secrets.json
-      - run: npx wrangler deploy --minify
+      - name: Deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --minify
