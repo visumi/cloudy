@@ -1,0 +1,5 @@
+TURSO_URL=
+TURSO_AUTH_TOKEN=
+FIREBASE_PROJECT_ID=
+# Separe dois ou mais e-mails por vírgula.
+OWNER_EMAIL=
