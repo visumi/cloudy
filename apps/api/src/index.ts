@@ -1,4 +1,5 @@
 import { authenticate, resolveAuthenticatedUser, upsertUser } from "./access";
+import { createItem, listItems, previewItem } from "./items";
 import { createDatabaseClient, type AuthUser, type Env, type HttpError } from "./shared";
 import { HttpError as CloudyHttpError } from "./shared";
 
@@ -8,8 +9,11 @@ export interface RequestDependencies {
   createDatabaseClient: typeof createDatabaseClient;
   resolveAuthenticatedUser: typeof resolveAuthenticatedUser;
   upsertUser: typeof upsertUser;
+  listItems: typeof listItems;
+  createItem: typeof createItem;
+  previewItem: typeof previewItem;
 }
-const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser };
+const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, createItem, previewItem };
 
 export default { fetch: (request: Request, env: Env) => handleRequest(request, env) } satisfies ExportedHandler<Env>;
 
@@ -27,6 +31,15 @@ export async function handleRequest(request: Request, env: Env, dependencies: Re
       return json(user, 200, corsHeaders);
     }
     if (!user.allowed) return json({ error: "forbidden" }, 403, corsHeaders);
+    if (request.method === "POST" && url.pathname === "/items/preview") {
+      return json(await dependencies.previewItem(await readRequestJson(request)), 200, corsHeaders);
+    }
+    if (request.method === "GET" && url.pathname === "/items") {
+      return json({ items: await dependencies.listItems(db, user.uid) }, 200, corsHeaders);
+    }
+    if (request.method === "POST" && url.pathname === "/items") {
+      return json(await dependencies.createItem(db, user.uid, await readRequestJson(request)), 201, corsHeaders);
+    }
     return json({ error: "not_found" }, 404, corsHeaders);
   } catch (error) {
     if (error instanceof CloudyHttpError) return json({ error: error.message }, error.status, corsHeaders);
@@ -40,12 +53,15 @@ function buildCorsHeaders(request: Request, env: Env): Headers {
   const origin = request.headers.get("Origin");
   const allowedOrigins = new Set(["http://localhost:5173", "http://127.0.0.1:5173", "https://cloudy.isumi.com.br", ...parseAllowedOrigins(env.ALLOWED_ORIGIN)]);
   if (origin && allowedOrigins.has(origin)) { headers.set("Access-Control-Allow-Origin", origin); headers.set("Vary", "Origin"); }
-  headers.set("Access-Control-Allow-Methods", "GET,OPTIONS");
+  headers.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   headers.set("Access-Control-Allow-Headers", "Authorization,Content-Type");
   headers.set("Access-Control-Max-Age", "86400");
   return headers;
 }
 function parseAllowedOrigins(value: string | undefined): string[] { return (value || "").split(",").map((origin) => origin.trim()).filter(Boolean); }
+async function readRequestJson(request: Request): Promise<unknown> {
+  try { return await request.json(); } catch { throw new CloudyHttpError(400, "invalid_json"); }
+}
 function json(body: unknown, status: number, headers?: Headers): Response {
   const responseHeaders = new Headers(headers);
   Object.entries(jsonHeaders).forEach(([key, value]) => responseHeaders.set(key, value));
