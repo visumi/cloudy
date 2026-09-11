@@ -5,7 +5,7 @@ import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../component
 import { ApiError, apiRequest } from "../../lib/api";
 import type { CategorySummary, CloudyItem, ItemPreview } from "../../types/api";
 import { FallbackImage } from "./ItemGraph";
-import { DEFAULT_CATEGORY_COLOR, getCategoryColorStyle } from "./category-colors";
+import { EMPTY_CATEGORY_COLOR, getCategoryColorStyle } from "./category-colors";
 
 interface ItemDialogProps {
   open: boolean;
@@ -24,7 +24,7 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
   const [url, setUrl] = useState("");
   const [name, setName] = useState("");
   const [categoryName, setCategoryName] = useState("");
-  const [categoryColor, setCategoryColor] = useState(DEFAULT_CATEGORY_COLOR);
+  const [categoryColor, setCategoryColor] = useState(EMPTY_CATEGORY_COLOR);
   const [observation, setObservation] = useState("");
   const [preview, setPreview] = useState<ItemPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -96,7 +96,7 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
     setUrl("");
     setName("");
     setCategoryName("");
-    setCategoryColor(DEFAULT_CATEGORY_COLOR);
+    setCategoryColor(EMPTY_CATEGORY_COLOR);
     setObservation("");
     setPreview(null);
     setPreviewMessage(null);
@@ -206,7 +206,7 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
                 <FallbackImage src={preview?.faviconUrl ?? null} alt="" className="item-live-preview-favicon" />
                 <span className="item-live-preview-category" style={getCategoryColorStyle(categoryColor)}>
                   <span aria-hidden="true" />
-                  <span>{categoryName || "Sua nova tag"}</span>
+                  <span>{categoryName || "Vazio"}</span>
                 </span>
               </div>
               <input
@@ -269,11 +269,11 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
               className={`category-orbit-tag category-orbit-tag--untagged${!categoryName ? " category-orbit-tag--selected" : ""}`}
               type="button"
               aria-pressed={!categoryName}
-              style={getCategoryColorStyle(DEFAULT_CATEGORY_COLOR)}
-              onClick={() => { setCategoryName(""); setCategoryColor(DEFAULT_CATEGORY_COLOR); }}
+              style={getCategoryColorStyle(EMPTY_CATEGORY_COLOR)}
+              onClick={() => { setCategoryName(""); setCategoryColor(EMPTY_CATEGORY_COLOR); }}
               >
                 <span className="category-orbit-dot" aria-hidden="true" />
-                <span>Sem tag</span>
+                <span>Vazio</span>
             </button>
             {categoryOptions.map((category, index) => (
               <button

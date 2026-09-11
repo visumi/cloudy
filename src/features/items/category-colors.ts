@@ -1,6 +1,9 @@
 import type { CSSProperties } from "react";
 
 export const DEFAULT_CATEGORY_COLOR = "#38BDF8";
+export const EMPTY_CATEGORY_COLOR = "#CBD5E1";
+
+const EMPTY_CATEGORY_OPTION = { value: EMPTY_CATEGORY_COLOR, background: "#F1F5F9", ink: "#475569" } as const;
 
 export const CATEGORY_COLOR_OPTIONS = [
   { name: "Azul céu", value: "#38BDF8", background: "#E0F2FE", ink: "#0C4A6E" },
@@ -14,7 +17,7 @@ export const CATEGORY_COLOR_OPTIONS = [
 ] as const;
 
 export function getCategoryColorStyle(color: string): CSSProperties {
-  const option = CATEGORY_COLOR_OPTIONS.find((candidate) => candidate.value === color);
+  const option = CATEGORY_COLOR_OPTIONS.find((candidate) => candidate.value === color) ?? (color === EMPTY_CATEGORY_COLOR ? EMPTY_CATEGORY_OPTION : undefined);
   return {
     "--category-color": option?.value ?? DEFAULT_CATEGORY_COLOR,
     "--category-bg": option?.background ?? "#E0F2FE",

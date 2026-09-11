@@ -14,6 +14,8 @@ describe("item graph layout", () => {
     expect(ideas[0].categoryLeft).toBe(ideas[1].categoryLeft);
     expect(ideas[0].categoryTop).toBe(ideas[1].categoryTop);
     expect({ left: ideas[0].categoryLeft, top: ideas[0].categoryTop }).not.toEqual({ left: work.categoryLeft, top: work.categoryTop });
+    expect(layout.connections.filter((connection) => connection.kind === "item")).toHaveLength(1);
+    expect(layout.connections.filter((connection) => connection.kind === "category")).toHaveLength(2);
   });
 
   it("produces a deterministic layout for the same items", () => {
@@ -25,7 +27,7 @@ describe("item graph layout", () => {
     const untaggedItem = { ...item("untagged", "unused", "unused"), category: null };
     const layout = buildItemGraphLayout([untaggedItem]);
 
-    expect(layout.clusters[0]).toMatchObject({ categoryId: "__untagged__", categoryName: "Sem tag" });
+    expect(layout.clusters[0]).toMatchObject({ categoryId: "__untagged__", categoryName: "Vazio" });
     expect(layout.nodes[0].item.category).toBeNull();
   });
 });

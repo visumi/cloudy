@@ -35,8 +35,8 @@ describe("ItemDialog", () => {
     expect(screen.getByPlaceholderText("Nome do item")).toBeInTheDocument();
     expect(screen.getByLabelText("Nome")).toHaveAttribute("maxLength", "24");
     expect(screen.getByText("0/2048", { selector: ".field-character-count" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sem tag" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("Sua nova tag", { selector: ".item-live-preview-category > span:last-child" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Vazio" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Vazio", { selector: ".item-live-preview-category > span:last-child" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Categoria")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Meu card" } });

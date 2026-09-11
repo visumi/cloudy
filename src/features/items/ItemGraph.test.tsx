@@ -13,10 +13,21 @@ const item: CloudyItem = {
   observation: "Uma referência para revisar depois.",
   category: { id: "category-1", name: "Ideias", color: "#A78BFA" },
   createdAt: "2026-09-11T00:00:00Z",
-  updatedAt: "2026-09-11T00:00:00Z"
+  updatedAt: "2026-09-12T00:00:00Z"
 };
 
 describe("ItemGraph drawer", () => {
+  it("renderiza conexões entre itens do mesmo cluster", () => {
+    render(
+      <ItemGraph items={[item, { ...item, id: "item-2", name: "Outra referência", createdAt: "2026-09-12T00:00:00Z" }]} isLoading={false} error={null} onRetry={() => undefined} onAddLink={() => undefined}>
+        <div aria-hidden="true" />
+      </ItemGraph>
+    );
+
+    expect(document.querySelectorAll(".graph-connection--category")).toHaveLength(2);
+    expect(document.querySelectorAll(".graph-connection--item")).toHaveLength(1);
+  });
+
   it("mantém fechar, copiar e abrir clicáveis depois de abrir um item", async () => {
     const user = userEvent.setup();
     const writeText = vi.fn().mockResolvedValue(undefined);
@@ -29,6 +40,7 @@ describe("ItemGraph drawer", () => {
 
     await user.click(screen.getByRole("button", { name: "Página de inspiração, categoria Ideias" }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Salvo em: 10/09/2026")).toBeInTheDocument();
 
     const copyButton = screen.getByRole("button", { name: "Copiar link" });
     await user.click(copyButton);
@@ -41,5 +53,23 @@ describe("ItemGraph drawer", () => {
 
     await user.click(screen.getByRole("button", { name: "Fechar detalhes" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("exibe itens sem tag como Vazio em cinza", async () => {
+    const user = userEvent.setup();
+    render(
+      <ItemGraph items={[{ ...item, category: null }]} isLoading={false} error={null} onRetry={() => undefined} onAddLink={() => undefined}>
+        <div aria-hidden="true" />
+      </ItemGraph>
+    );
+
+    expect(screen.getByRole("button", { name: "Página de inspiração, categoria Vazio" })).toBeInTheDocument();
+    const nodeCategory = screen.getByText("Vazio", { selector: ".item-node-category > span:last-child" });
+    expect(nodeCategory).toBeInTheDocument();
+    expect(nodeCategory.parentElement).toHaveStyle("--category-color: #CBD5E1");
+    await user.click(screen.getByRole("button", { name: "Página de inspiração, categoria Vazio" }));
+    const detailCategory = await screen.findByText("Vazio", { selector: ".item-detail-category > span:last-child" });
+    expect(detailCategory).toBeInTheDocument();
+    expect(detailCategory.parentElement).toHaveStyle("--category-color: #CBD5E1");
   });
 });

@@ -4,9 +4,19 @@ import { Check, Copy, Globe, X } from "lucide-react";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
 import type { CloudyItem } from "../../types/api";
 import { buildItemGraphLayout } from "./item-graph";
-import { DEFAULT_CATEGORY_COLOR, getCategoryColorStyle } from "./category-colors";
+import { EMPTY_CATEGORY_COLOR, getCategoryColorStyle } from "./category-colors";
 
 const FALLBACK_IMAGE = "/cloudy-icon.png";
+const SAVED_DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Sao_Paulo" });
+
+function formatSavedDate(value: string): string {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (dateOnly) return `${dateOnly[3]}/${dateOnly[2]}/${dateOnly[1]}`;
+
+  const normalizedValue = value.includes("T") ? value : `${value.replace(" ", "T")}Z`;
+  const date = new Date(normalizedValue);
+  return Number.isNaN(date.getTime()) ? value : SAVED_DATE_FORMATTER.format(date);
+}
 
 async function copyToClipboard(value: string) {
   if (navigator.clipboard?.writeText) {
@@ -57,8 +67,8 @@ export function ItemGraph({ items, isLoading, error, onRetry, onAddLink, onDetai
   return (
     <div className="graph-scene">
       <svg className="graph-connections" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {layout.clusters.map((cluster) => (
-          <line key={cluster.categoryId} x1="50" y1="48" x2={cluster.left} y2={cluster.top} />
+        {layout.connections.map((connection, index) => (
+          <line className={`graph-connection graph-connection--${connection.kind}`} key={`${connection.kind}-${index}`} x1={connection.x1} y1={connection.y1} x2={connection.x2} y2={connection.y2} />
         ))}
       </svg>
       <div className="graph-cloud">{children}</div>
@@ -69,14 +79,14 @@ export function ItemGraph({ items, isLoading, error, onRetry, onAddLink, onDetai
             key={item.id}
             type="button"
             style={{ left: `${left}%`, top: `${top}%` }}
-            aria-label={`${item.name}, ${item.category ? `categoria ${item.category.name}` : "sem tag"}`}
+            aria-label={`${item.name}, ${item.category ? `categoria ${item.category.name}` : "categoria Vazio"}`}
             aria-pressed={selectedItemId === item.id}
             onClick={() => { setSelectedItemId(item.id); setDetailItem(item); }}
           >
             <FallbackImage src={item.imageUrl} alt="" className="item-node-image" />
             <span className="item-node-copy">
               <strong>{item.name}</strong>
-            <small className="item-node-category" style={getCategoryColorStyle(item.category?.color ?? DEFAULT_CATEGORY_COLOR)}><span aria-hidden="true" /><span>{item.category?.name ?? "Sem tag"}</span></small>
+            <small className="item-node-category" style={getCategoryColorStyle(item.category?.color ?? EMPTY_CATEGORY_COLOR)}><span aria-hidden="true" /><span>{item.category?.name ?? "Vazio"}</span></small>
             </span>
           </button>
         ))}
@@ -177,16 +187,17 @@ function ItemDetail({ item, open, onClose, onExited }: { item: CloudyItem; open:
 
   return createPortal(
     <div className="item-detail-backdrop" data-closing={isClosing || undefined} role="presentation" onClick={requestClose}>
-      <section className="item-detail-panel" data-closing={isClosing || undefined} data-dragging={drawerGesture.isDragging || undefined} style={{ ...drawerGesture.panelStyle, ...getCategoryColorStyle(category?.color ?? DEFAULT_CATEGORY_COLOR) }} onAnimationEnd={handleExitAnimationEnd} role="dialog" aria-modal="true" aria-labelledby="item-detail-title" onClick={(event) => event.stopPropagation()} {...drawerGesture.panelProps}>
+      <section className="item-detail-panel" data-closing={isClosing || undefined} data-dragging={drawerGesture.isDragging || undefined} style={{ ...drawerGesture.panelStyle, ...getCategoryColorStyle(category?.color ?? EMPTY_CATEGORY_COLOR) }} onAnimationEnd={handleExitAnimationEnd} role="dialog" aria-modal="true" aria-labelledby="item-detail-title" onClick={(event) => event.stopPropagation()} {...drawerGesture.panelProps}>
         <div className="mobile-drawer-handle" aria-hidden="true" />
         <button className="item-detail-close" type="button" aria-label="Fechar detalhes" onClick={requestClose}><X aria-hidden="true" /></button>
         <FallbackImage src={item.imageUrl} alt="" className="item-detail-image" />
         <div className="item-detail-content">
           <div className="item-detail-source">
             <FallbackImage src={item.faviconUrl} alt="" className="item-detail-favicon" />
-            <span className="item-detail-category" style={getCategoryColorStyle(category?.color ?? DEFAULT_CATEGORY_COLOR)}><span aria-hidden="true" /><span>{category?.name ?? "Sem tag"}</span></span>
+            <span className="item-detail-category" style={getCategoryColorStyle(category?.color ?? EMPTY_CATEGORY_COLOR)}><span aria-hidden="true" /><span>{category?.name ?? "Vazio"}</span></span>
           </div>
           <h2 id="item-detail-title">{item.name}</h2>
+          <p className="item-detail-saved-at">Salvo em: {formatSavedDate(item.createdAt)}</p>
           {item.observation && <p>{item.observation}</p>}
           {item.url && (
             <div className="item-detail-actions">
