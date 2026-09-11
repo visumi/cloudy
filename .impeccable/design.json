@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-11T15:10:00.000Z",
+  "title": "Design System: Cloudy",
+  "extensions": {
+    "colorMeta": {
+      "app-bg": { "role": "neutral", "displayName": "Workspace Sky Profundo", "canonical": "#164561", "tonalRamp": ["#07131f", "#0b2435", "#10334a", "#164561", "#225d7b", "#3b7895", "#6f9eb3", "#c8e1eb"] },
+      "sky-50": { "role": "neutral", "displayName": "Sky Surface", "canonical": "#f0f9ff", "tonalRamp": ["#082f49", "#0c4a6e", "#075985", "#0369a1", "#0284c7", "#38bdf8", "#bae6fd", "#f0f9ff"] },
+      "sky-200": { "role": "primary", "displayName": "Sky Line", "canonical": "#bae6fd", "tonalRamp": ["#082f49", "#0c4a6e", "#075985", "#0369a1", "#0284c7", "#38bdf8", "#bae6fd", "#f0f9ff"] },
+      "sky-700": { "role": "primary", "displayName": "Sky Action", "canonical": "#0369a1", "tonalRamp": ["#082f49", "#0c4a6e", "#075985", "#0369a1", "#0284c7", "#38bdf8", "#bae6fd", "#f0f9ff"] },
+      "sky-900": { "role": "primary", "displayName": "Sky Profundo", "canonical": "#0c4a6e", "tonalRamp": ["#082f49", "#0c4a6e", "#075985", "#0369a1", "#0284c7", "#38bdf8", "#bae6fd", "#f0f9ff"] },
+      "green-700": { "role": "secondary", "displayName": "Green Confirmacao", "canonical": "#15803d", "tonalRamp": ["#052e16", "#14532d", "#166534", "#15803d", "#16a34a", "#4ade80", "#bbf7d0", "#f0fdf4"] },
+      "red-700": { "role": "tertiary", "displayName": "Red Saida", "canonical": "#b91c1c", "tonalRamp": ["#450a0a", "#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#f87171", "#fecaca", "#fef2f2"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "DynaPuff Display", "purpose": "Marca Cloudy na tela de login." },
+      "body": { "displayName": "SF System", "purpose": "Leitura funcional e controles." }
+    },
+    "shadows": [
+      { "name": "action-ambient", "value": "0 12px 24px oklch(0.08 0.04 245 / .22)", "purpose": "Profundidade base dos botoes da nuvem." },
+      { "name": "action-hover", "value": "0 15px 26px oklch(0.08 0.04 245 / .27)", "purpose": "Elevacao durante hover." },
+      { "name": "dropdown-lift", "value": "0 18px 36px oklch(0.08 0.04 245 / .25)", "purpose": "Separacao do menu Sky-50 sobre o workspace." }
+    ],
+    "motion": [
+      { "name": "ease-arrival", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Entrada confiante de nuvem e dropdown." },
+      { "name": "menu-open", "value": "220ms", "purpose": "Fade, blur limitado e deslocamento vertical do menu." },
+      { "name": "menu-close", "value": "160ms", "purpose": "Saida mais rapida que a entrada." },
+      { "name": "reduced-motion", "value": "prefers-reduced-motion: reduce", "purpose": "Reduz deslocamento e duracao para usuarios que preferem menos movimento." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Cloud Action Button",
+      "kind": "button",
+      "refersTo": "icon-button",
+      "description": "Botao circular de acao com superficie clara, foco Sky e elevacao curta.",
+      "html": "<button class=\"ds-icon-button\" aria-label=\"Adicionar referencia\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\"/></svg></button>",
+      "css": ".ds-icon-button { display:grid; place-items:center; width:72px; height:72px; border:2px solid #bae6fd; border-radius:50%; color:#0c4a6e; background:#f0f9ff; box-shadow:0 12px 24px rgba(5,45,70,.22); cursor:pointer; transition:color 220ms ease-out, background-color 220ms ease-out, border-color 220ms ease-out, box-shadow 180ms ease; } .ds-icon-button:hover { color:#15803d; background:#f0fdf4; border-color:#bbf7d0; box-shadow:0 15px 26px rgba(5,45,70,.27); } .ds-icon-button:focus-visible { outline:3px solid #0369a1; outline-offset:3px; }"
+    },
+    {
+      "name": "Dropdown Menu",
+      "kind": "custom",
+      "refersTo": "dropdown-menu",
+      "description": "Popover contextual Sky para acoes ancoradas no grupo da nuvem.",
+      "html": "<div class=\"ds-dropdown-menu\" role=\"menu\" aria-label=\"Adicionar\"><button class=\"ds-dropdown-item\" role=\"menuitem\">Adicionar link</button></div>",
+      "css": ".ds-dropdown-menu { width:214px; padding:10px; border:1px solid #bae6fd; border-radius:18px; color:#0c4a6e; background:#f0f9ff; box-shadow:0 18px 36px rgba(5,45,70,.25); animation:ds-dropdown-open 220ms cubic-bezier(.16,1,.3,1) both; } .ds-dropdown-item { display:flex; width:100%; min-height:40px; align-items:center; border:0; border-radius:11px; color:#0c4a6e; background:transparent; cursor:pointer; text-align:left; } .ds-dropdown-item:hover { background:#e0f2fe; } @keyframes ds-dropdown-open { from { opacity:0; transform:translateY(8px) scale(.94); } to { opacity:1; transform:translateY(0) scale(1); } }"
+    },
+    {
+      "name": "Dropdown Menu Item",
+      "kind": "button",
+      "refersTo": "dropdown-menu-item",
+      "description": "Item de menu com icone Lucide, label e variante destructive opcional.",
+      "html": "<button class=\"ds-dropdown-item ds-dropdown-item--destructive\" role=\"menuitem\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M10 6h8M10 12h8M10 18h8M6 6h.01M6 12h.01M6 18h.01\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/></svg><span>Sair</span></button>",
+      "css": ".ds-dropdown-item { gap:10px; padding:0 10px; font:650 .84rem/1.2 system-ui,sans-serif; transition:color 160ms ease,background-color 160ms ease; } .ds-dropdown-item svg { width:17px; height:17px; flex:0 0 auto; color:#0369a1; } .ds-dropdown-item--destructive { color:#b91c1c; } .ds-dropdown-item--destructive:hover { color:#b91c1c; background:#fef2f2; } .ds-dropdown-item--destructive:focus-visible { outline:2px solid #b91c1c; outline-offset:2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "A nuvem de referencias",
+    "overview": "Cloudy e um espaco pessoal leve e visual. O workspace profundo em Sky deixa a nuvem 3D e a proxima acao no centro, enquanto superficies quase brancas criam contraste e clareza. Controles compactos se agrupam como uma pequena nuvem fisica.",
+    "keyCharacteristics": ["Workspace radial em Sky profundo", "Acoes circulares e organicas", "Menus claros e contextuais", "Movimento curto e funcional"],
+    "rules": [
+      { "name": "Uma unica linguagem de acao", "body": "Reutilize IconButton e DropdownMenu antes de criar estilos locais.", "section": "colors" },
+      { "name": "Movimento com proposito", "body": "Animacoes explicam entrada, foco ou resposta e respeitam reduced motion.", "section": "elevation" }
+    ],
+    "dos": ["Use tokens Sky, Green e Red", "Mantenha alvos de toque com pelo menos 44px", "Use icones Lucide com labels acessiveis"],
+    "donts": ["Nao crie menus com sombras proprias", "Nao use glassmorphism ou gradientes de texto", "Nao desloque itens de menu no hover"]
+  }
+}

@@ -7,9 +7,9 @@ vi.mock("../../hooks/use-auth", () => ({
 }));
 
 describe("LoginPage", () => {
-  it("exibe a entrada Google e a mensagem de acesso", () => {
+  it("exibe a entrada Google sem texto adicional de acesso", () => {
     render(<LoginPage />);
     expect(screen.getByRole("button", { name: /entrar com google/i })).toBeInTheDocument();
-    expect(screen.getByText(/apenas para pessoas autorizadas/i)).toBeInTheDocument();
+    expect(screen.queryByText(/apenas para pessoas autorizadas/i)).not.toBeInTheDocument();
   });
 });
