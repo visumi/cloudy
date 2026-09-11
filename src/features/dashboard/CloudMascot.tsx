@@ -189,5 +189,5 @@ export function CloudMascot() {
     };
   }, []);
 
-  return <div ref={mountRef} className="cloud-mascot" role="img" aria-label="Nuvem 3D do Cloudy" />;
+  return <div ref={mountRef} className="cloud-mascot cloud-mascot--ready" role="img" aria-label="Nuvem 3D do Cloudy" />;
 }

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#22a8ed" />
+    <meta name="theme-color" content="#0369a1" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DynaPuff:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -12,8 +12,103 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="description" content="Cloudy organiza links em um espaço visual." />
     <title>Cloudy</title>
+    <style>
+      html,
+      body {
+        background: #0369a1;
+      }
+      #boot-loading {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at 50% 42%, #0ea5e9 0%, #0369a1 48%, #075985 74%, #0c4a6e 100%);
+        opacity: 1;
+        transition: opacity 220ms ease;
+      }
+      #boot-loading[data-leaving="true"] {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .boot-loading-content {
+        display: grid;
+        justify-items: center;
+        gap: 24px;
+      }
+      .boot-loading-logo {
+        display: block;
+        width: min(52vw, 220px);
+        height: auto;
+        object-fit: contain;
+      }
+      .boot-loading-progress {
+        position: relative;
+        width: min(48vw, 180px);
+        height: 4px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(224, 242, 254, .28);
+      }
+      .boot-loading-progress span {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 38%;
+        border-radius: inherit;
+        background: #e0f2fe;
+        animation: boot-progress-slide 1.4s cubic-bezier(.4, 0, .2, 1) infinite;
+      }
+      .boot-loading-message {
+        position: relative;
+        width: min(72vw, 260px);
+        min-height: 1.4em;
+        margin-top: -6px;
+        color: rgba(224, 242, 254, .86);
+        font: 500 .78rem/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+        letter-spacing: .01em;
+        text-align: center;
+      }
+      .boot-loading-message span {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        transform: translateY(4px);
+        animation: boot-message-cycle 8s ease-in-out infinite;
+      }
+      .boot-loading-message span:nth-child(2) { animation-delay: 2s; }
+      .boot-loading-message span:nth-child(3) { animation-delay: 4s; }
+      .boot-loading-message span:nth-child(4) { animation-delay: 6s; }
+      @keyframes boot-message-cycle {
+        0%, 18% { opacity: 1; transform: translateY(0); }
+        23%, 100% { opacity: 0; transform: translateY(-4px); }
+      }
+      @keyframes boot-progress-slide {
+        0% { transform: translateX(-140%); opacity: .35; }
+        30% { opacity: 1; }
+        70% { opacity: 1; }
+        100% { transform: translateX(365%); opacity: .35; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot-loading { transition-duration: 1ms; }
+        .boot-loading-progress span { animation-duration: 1ms; }
+        .boot-loading-message span { animation: none; opacity: 0; transform: none; }
+        .boot-loading-message span:first-child { opacity: 1; }
+      }
+    </style>
   </head>
   <body>
+    <div id="boot-loading" role="status" aria-label="Carregando o Cloudy">
+      <div class="boot-loading-content" aria-hidden="true">
+        <img class="boot-loading-logo" src="/cloudy-logo.png" alt="" />
+        <div class="boot-loading-progress" aria-hidden="true"><span></span></div>
+        <div class="boot-loading-message" aria-hidden="true">
+          <span>Aquecendo a nuvem...</span>
+          <span>Juntando boas ideias no ar...</span>
+          <span>Dando um brilho no seu espaço...</span>
+          <span>Quase pousando...</span>
+        </div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

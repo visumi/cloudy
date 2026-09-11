@@ -21,7 +21,7 @@
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: oklch(1 0 0); }
 button { font: inherit; }
-.auth-page, .loading-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: linear-gradient(180deg, oklch(0.98 0.008 235), white); }
+.auth-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: linear-gradient(180deg, oklch(0.98 0.008 235), white); }
 .auth-page { position: relative; isolation: isolate; overflow: hidden; padding: 0 24px; color: oklch(0.98 0.008 235); background: #07131f; }
 .auth-background { position: absolute; inset: 0; z-index: 0; opacity: .46; pointer-events: none; }
 .crt-warp { position: relative; width: 100%; height: 100%; overflow: hidden; }
@@ -45,12 +45,10 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 .login-footer a { color: oklch(0.84 0.12 235); font-weight: 650; text-decoration: underline; text-decoration-color: oklch(0.62 0.1 235); text-underline-offset: 2px; transition: color 180ms ease; }
 .login-footer a:hover { color: oklch(0.94 0.08 235); }
 .status-message { margin: 16px 0 0; color: oklch(0.82 0.16 25); font-size: .9rem; line-height: 1.45; }
-.loading-page { gap: 12px; color: var(--muted); }
-.loading-mark { width: 28px; height: 28px; border: 3px solid var(--line); border-top-color: var(--primary); border-radius: 50%; animation: spin 800ms linear infinite; }
-.loading-page p { margin: 0; }
 .app-page { position: relative; min-height: 100dvh; overflow: hidden; color: oklch(0.98 0.008 235); background: radial-gradient(circle at 50% 42%, oklch(0.48 0.15 235 / .86), transparent 36%), #164561; }
 .workspace { display: grid; width: 100%; min-height: 100dvh; margin: 0 auto; place-items: center; padding: 24px; }
 .cloud-mascot { width: min(82vw, 420px); height: min(58vh, 320px); margin: 0 auto; }
+.cloud-mascot--ready { animation: cloud-mascot-arrival 880ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 .cloud-mascot canvas { display: block; width: 100%; height: 100%; }
 .action-cloud-dock { --action-cloud-bottom-space: max(20px, env(safe-area-inset-bottom)); position: absolute; inset-inline: 0; bottom: var(--action-cloud-bottom-space); z-index: 2; display: flex; justify-content: center; padding: 0 20px; pointer-events: none; transform: translateY(0); transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1); }
 .action-cloud-dock--hidden { transform: translateY(calc(100% + var(--action-cloud-bottom-space))); }
@@ -96,6 +94,7 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 @keyframes login-button-arrival { from { transform: translateY(14px) scale(.94); } to { transform: translateY(0) scale(1); } }
 @keyframes login-tagline-arrival { from { transform: translateY(12px); } to { transform: translateY(0); } }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes cloud-mascot-arrival { 0% { opacity: 0; transform: translateY(22px) scale(.86); filter: blur(8px); } 58% { opacity: .92; transform: translateY(-3px) scale(1.015); filter: blur(1px); } 100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
 @media (min-width: 640px) { .auth-card { padding-inline: 20px; } .workspace { padding-inline: 40px; } }
 @keyframes action-cloud-arrival { from { opacity: 0; transform: translateY(20px) scale(.9); filter: blur(7px); } to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
 @keyframes settings-spin { to { transform: rotate(360deg); } }

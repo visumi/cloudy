@@ -36,8 +36,8 @@ export function LoginPage() {
           <GoogleIcon />
           Entrar com Google
         </Button>
-        <p className="login-tagline">Guarde o que inspira você.</p>
         {authError && <p className="status-message" role="status">{authError}</p>}
+        <p className="login-tagline">Guarde o que inspira você.</p>
       </section>
       <footer className="login-footer">
         © {new Date().getFullYear()} · Desenvolvido por <a href="https://isumi.com.br/" target="_blank" rel="noreferrer">isumi.</a>
