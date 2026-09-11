@@ -47,7 +47,9 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 .workspace { width: min(100%, 920px); margin: 0 auto; padding: 56px 20px 80px; }
 .workspace-heading { max-width: 620px; }
 .workspace-heading h1 { font-size: clamp(2.2rem, 8vw, 4.6rem); }
-.empty-graph { display: grid; justify-items: center; margin-top: 44px; padding: 54px 20px; text-align: center; border: 1px dashed oklch(0.78 0.045 240); border-radius: 16px; background: oklch(1 0 0 / .72); }
+.empty-graph { display: grid; justify-items: center; margin-top: 44px; padding: 38px 20px 54px; text-align: center; border: 1px dashed oklch(0.78 0.045 240); border-radius: 16px; background: oklch(1 0 0 / .72); overflow: hidden; }
+.cloud-mascot { width: min(100%, 250px); height: 190px; margin: 0 auto 4px; }
+.cloud-mascot canvas { display: block; width: 100%; height: 100%; }
 .empty-graph .empty-cloud { transform: scale(.85); margin-bottom: 14px; opacity: .75; }
 .empty-graph p { max-width: 360px; color: var(--muted); line-height: 1.5; }
 .empty-graph .button { color: var(--muted); background: var(--surface); cursor: not-allowed; }

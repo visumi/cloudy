@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "test": "vitest run",
-    "api:dev": "wrangler dev --config apps/api/wrangler.jsonc",
+    "api:dev": "wrangler dev --config wrangler.jsonc",
     "api:test": "vitest run --config apps/api/vitest.config.ts",
     "db:migrate": "node scripts/apply-migrations.mjs"
   },
@@ -18,7 +18,8 @@
     "firebase": "^12.4.0",
     "jose": "^6.1.0",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "three": "^0.186.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260902.1",
@@ -28,12 +29,16 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
+    "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^5.0.4",
+    "dotenv": "^17.2.2",
     "jsdom": "^26.1.0",
     "typescript": "~5.9.3",
     "vite": "^7.1.7",
     "vitest": "^4.1.0",
     "wrangler": "^4.104.0"
   },
-  "engines": { "node": ">=24.0.0" }
+  "engines": {
+    "node": ">=24.0.0"
+  }
 }

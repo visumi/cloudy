@@ -1,5 +1,8 @@
+import { lazy, Suspense } from "react";
 import { Button } from "../../components/ui/button";
 import { useAuth } from "../../hooks/use-auth";
+
+const CloudMascot = lazy(() => import("./CloudMascot").then(({ CloudMascot: Mascot }) => ({ default: Mascot })));
 
 export function CloudyShell() {
   const { user, profile, signOutUser } = useAuth();
@@ -20,7 +23,9 @@ export function CloudyShell() {
           <p className="lede">Salve seu primeiro link para começar a construir seu mapa de referências.</p>
         </div>
         <div className="empty-graph" role="status">
-          <div className="empty-cloud" aria-hidden="true"><span /><span /><span /></div>
+          <Suspense fallback={<div className="cloud-mascot" aria-hidden="true" />}>
+            <CloudMascot />
+          </Suspense>
           <h2>Nenhum link salvo ainda</h2>
           <p>O grafo visual aparecerá aqui quando sua coleção ganhar forma.</p>
           <Button disabled aria-disabled="true">Salvar primeiro link</Button>
