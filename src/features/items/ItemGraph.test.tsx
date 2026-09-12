@@ -101,22 +101,12 @@ describe("ItemGraph", () => {
     expect(await screen.findByText("Vazio", { selector: ".item-detail-category > span:last-child" })).toBeInTheDocument();
   });
 
-  it("mantém apenas o arraste e limita o zoom pelo volume de itens", () => {
+  it("mantém o zoom reduzido para exibir todos os itens", () => {
     renderGraph({ selectedCategory: category, items: [item] });
-    const layer = document.querySelector(".graph-zoom-layer")!;
     const viewport = document.querySelector(".graph-viewport")!;
+    const layer = document.querySelector(".graph-zoom-layer")!;
 
-    expect(screen.queryByRole("button", { name: "Aumentar zoom" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Diminuir zoom" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Recentrar grafo" })).not.toBeInTheDocument();
-    fireEvent.wheel(viewport, { deltaY: 100 });
-    expect(layer).toHaveStyle("transform: translate3d(0px, 0px, 0) scale(0.9)");
-
-    const denseItems = Array.from({ length: 70 }, (_, index) => ({ ...item, id: `dense-${index}`, createdAt: `2026-09-${String(index + 1).padStart(2, "0")}T00:00:00Z` }));
-    renderGraph({ selectedCategory: category, items: denseItems });
-    const denseLayer = document.querySelectorAll(".graph-zoom-layer")[1];
-    expect(denseLayer).toHaveStyle("transform: translate3d(0px, 0px, 0) scale(0.9)");
-    fireEvent.wheel(document.querySelectorAll(".graph-viewport")[1], { deltaY: -100 });
-    expect(denseLayer).toHaveStyle("transform: translate3d(0px, 0px, 0) scale(0.9)");
+    expect(viewport).not.toHaveClass("graph-viewport--interactive");
+    expect(layer).toHaveStyle("transform: scale(0.9)");
   });
 });

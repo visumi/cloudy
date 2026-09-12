@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type AnimationEvent, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type AnimationEvent, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, Check, Copy, Globe, X } from "lucide-react";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
@@ -50,15 +50,9 @@ interface ItemGraphProps {
   children: ReactNode;
 }
 
-interface GraphTransform {
-  x: number;
-  y: number;
-  scale: number;
-}
-
 const DEFAULT_GRAPH_ZOOM = 0.9;
-const CATEGORY_GRAPH_TRANSITION_DURATION = 620;
-const OVERVIEW_GRAPH_TRANSITION_DURATION = 540;
+const CATEGORY_GRAPH_TRANSITION_DURATION = 360;
+const OVERVIEW_GRAPH_TRANSITION_DURATION = 320;
 
 type GraphViewTransition = "overview" | "to-category" | "category" | "to-overview";
 
@@ -69,8 +63,6 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
   const [viewTransition, setViewTransition] = useState<GraphViewTransition>(selectedCategory ? "category" : "overview");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [detailItem, setDetailItem] = useState<CloudyItem | null>(null);
-  const [graphTransform, setGraphTransform] = useState<GraphTransform>({ x: 0, y: 0, scale: getDefaultGraphZoom() });
-  const dragRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
   const previousCategoryRef = useRef<CategorySummary | null>(selectedCategory);
   const viewTransitionTimerRef = useRef<number | undefined>(undefined);
   const selectedItem = items.find((item) => item.id === selectedItemId) || null;
@@ -90,10 +82,9 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
   useEffect(() => {
     setSelectedItemId(null);
     setDetailItem(null);
-    setGraphTransform({ x: 0, y: 0, scale: getDefaultGraphZoom() });
   }, [isCategoryView, items.length, selectedCategory?.id]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const previousCategory = previousCategoryRef.current;
     const nextCategory = selectedCategory;
     previousCategoryRef.current = nextCategory;
@@ -124,27 +115,7 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
 
   const categoryNodesState = viewTransition === "to-category" ? "exiting" : viewTransition === "to-overview" ? "entering" : viewTransition === "overview" ? "active" : "hidden";
   const itemNodesState = viewTransition === "to-category" ? "entering" : viewTransition === "to-overview" ? "exiting" : viewTransition === "category" ? "active" : "hidden";
-  const graphLayerStyle = isCategoryView ? {
-    transform: `translate3d(${graphTransform.x}px, ${graphTransform.y}px, 0) scale(${graphTransform.scale})`
-  } : undefined;
-
-  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!isCategoryView || (event.target as HTMLElement).closest("button")) return;
-    dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current || dragRef.current.pointerId !== event.pointerId) return;
-    const deltaX = event.clientX - dragRef.current.x;
-    const deltaY = event.clientY - dragRef.current.y;
-    dragRef.current = { ...dragRef.current, x: event.clientX, y: event.clientY };
-    setGraphTransform((current) => ({ ...current, x: current.x + deltaX, y: current.y + deltaY }));
-  };
-
-  const stopDragging = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
-  };
+  const graphLayerStyle = isCategoryView ? { transform: `scale(${DEFAULT_GRAPH_ZOOM})` } : undefined;
 
   return (
     <div className={`graph-scene${isCategoryView ? " graph-scene--category" : " graph-scene--overview"}`}>
@@ -161,11 +132,7 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
       )}
 
       <div
-        className={`graph-viewport${isCategoryView ? " graph-viewport--interactive" : ""}`}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={stopDragging}
-        onPointerCancel={stopDragging}
+        className="graph-viewport"
       >
         <div className="graph-zoom-layer" style={graphLayerStyle as CSSProperties}>
           <svg className="graph-connections" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -214,7 +181,7 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
                 className={`item-node${selectedItemId === item.id ? " item-node--selected" : ""}`}
                 key={item.id}
                 type="button"
-                style={{ left: `${left}%`, top: `${top}%`, zIndex: items.length - index, "--graph-delay": `${Math.min(index, 7) * 28}ms`, "--graph-card-alpha": items.length > 20 ? (index % 4 === 1 ? ".72" : index % 4 === 2 ? ".84" : ".9") : ".94" } as CSSProperties}
+                style={{ left: `${left}%`, top: `${top}%`, zIndex: items.length - index, "--graph-delay": `${Math.min(index, 7) * 12}ms`, "--graph-card-alpha": items.length > 20 ? (index % 4 === 1 ? ".72" : index % 4 === 2 ? ".84" : ".9") : ".94" } as CSSProperties}
                 aria-label={`${item.name}, ${item.category ? `categoria ${item.category.name}` : "categoria Vazio"}`}
                 aria-pressed={selectedItemId === item.id}
                 onClick={() => { setSelectedItemId(item.id); setDetailItem(item); }}
@@ -252,10 +219,6 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
       {detailItem && <ItemDetail item={detailItem} open={selectedItemId === detailItem.id} onClose={() => setSelectedItemId(null)} onExited={() => setDetailItem(null)} />}
     </div>
   );
-}
-
-function getDefaultGraphZoom(): number {
-  return DEFAULT_GRAPH_ZOOM;
 }
 
 function formatItemCount(count: number): string {

@@ -171,19 +171,16 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 .workspace { padding: 0; }
 .graph-scene { position: relative; width: 100%; height: 100%; min-height: 100dvh; overflow: hidden; }
 .graph-viewport { position: absolute; inset: 0; overflow: hidden; }
-.graph-viewport--interactive { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
-.graph-viewport--interactive:active { cursor: grabbing; }
-.graph-viewport--interactive img { -webkit-user-drag: none; user-drag: none; }
 .graph-zoom-layer { position: absolute; inset: 0; transform-origin: 50% 48%; }
 .graph-connections { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .graph-connections line { fill: none; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .graph-connection-layer { opacity: 0; }
 .graph-connection-layer--categories[data-state="active"] { opacity: 1; }
-.graph-connection-layer--categories[data-state="exiting"] { animation: graph-connection-departure 260ms cubic-bezier(0.7, 0, 0.84, 0) both; }
-.graph-connection-layer--categories[data-state="entering"] { animation: graph-connection-arrival 440ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.graph-connection-layer--categories[data-state="exiting"] { animation: graph-connection-departure 180ms cubic-bezier(0.7, 0, 0.84, 0) both; }
+.graph-connection-layer--categories[data-state="entering"] { animation: graph-connection-arrival 300ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 .graph-connection-layer--items[data-state="active"] { opacity: 1; }
-.graph-connection-layer--items[data-state="entering"] { animation: graph-connection-arrival 460ms 80ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-.graph-connection-layer--items[data-state="exiting"] { animation: graph-connection-departure 240ms cubic-bezier(0.7, 0, 0.84, 0) both; }
+.graph-connection-layer--items[data-state="entering"] { animation: graph-connection-arrival 320ms 40ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.graph-connection-layer--items[data-state="exiting"] { animation: graph-connection-departure 180ms cubic-bezier(0.7, 0, 0.84, 0) both; }
 .graph-connection--core { stroke: oklch(0.82 0.09 235 / .38); stroke-width: .22; }
 .graph-connection--category { stroke: oklch(0.78 0.1 235 / .3); stroke-width: .3; }
 .graph-connection--item { stroke: oklch(0.86 0.12 235 / .72); stroke-width: .46; }
@@ -198,12 +195,12 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 .graph-category-heading strong { font-size: .98rem; font-weight: 800; }
 .graph-category-heading span { color: oklch(0.84 0.06 235); font-size: .7rem; font-weight: 650; }
 .graph-nodes[data-state="hidden"] { opacity: 0; visibility: hidden; pointer-events: none; }
-.graph-nodes--categories[data-state="exiting"] { animation: graph-nodes-departure 280ms cubic-bezier(0.7, 0, 0.84, 0) both; }
-.graph-nodes--categories[data-state="entering"] { animation: graph-nodes-arrival 480ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-.graph-nodes--categories[data-state="exiting"] .category-node { animation: category-node-departure 260ms var(--graph-delay) cubic-bezier(0.7, 0, 0.84, 0) both; }
-.graph-nodes--categories[data-state="entering"] .category-node { animation: category-node-arrival 500ms var(--graph-delay) cubic-bezier(0.16, 1, 0.3, 1) backwards; }
-.graph-nodes--items[data-state="entering"] .item-node { animation: item-node-arrival 440ms var(--graph-delay) cubic-bezier(0.16, 1, 0.3, 1) backwards; }
-.graph-nodes--items[data-state="exiting"] { animation: graph-nodes-departure 240ms cubic-bezier(0.7, 0, 0.84, 0) both; }
+.graph-nodes--categories[data-state="exiting"] { animation: graph-nodes-departure 180ms cubic-bezier(0.7, 0, 0.84, 0) both; }
+.graph-nodes--categories[data-state="entering"] { animation: graph-nodes-arrival 320ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.graph-nodes--categories[data-state="exiting"] .category-node { pointer-events: none; animation: category-node-departure 180ms cubic-bezier(0.7, 0, 0.84, 0) both; }
+.graph-nodes--categories[data-state="entering"] .category-node { animation: category-node-arrival 360ms var(--graph-delay) cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.graph-nodes--items[data-state="entering"] .item-node { animation: item-node-arrival 320ms var(--graph-delay) cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.graph-nodes--items[data-state="exiting"] { animation: graph-nodes-departure 180ms cubic-bezier(0.7, 0, 0.84, 0) both; }
 .category-node { position: absolute; display: grid; width: clamp(118px, 32vw, 150px); min-height: 70px; place-items: center; border: 1px solid color-mix(in srgb, var(--category-color) 58%, white); border-radius: 15px; padding: 10px 12px; color: var(--category-ink); background: color-mix(in srgb, var(--category-bg) 90%, white); box-shadow: 0 12px 25px oklch(0.08 0.04 245 / .18); cursor: pointer; pointer-events: auto; text-align: left; transform: translate(-50%, -50%); transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), filter 160ms ease, box-shadow 220ms ease; animation: category-node-arrival 500ms var(--graph-delay, 0ms) cubic-bezier(0.16, 1, 0.3, 1) backwards; }
 .category-node:hover, .category-node:focus-visible { filter: saturate(1.08); box-shadow: 0 18px 34px oklch(0.08 0.04 245 / .28); transform: translate(-50%, calc(-50% - 7px)) rotate(-3.5deg) scale(1.05); }
 .category-node-content { position: relative; z-index: 2; display: flex; width: 100%; align-items: center; gap: 8px; }
