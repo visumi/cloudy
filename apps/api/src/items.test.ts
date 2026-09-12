@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Client } from "@libsql/client/web";
-import { createCategory, createItem, deleteCategory, parseCategoryInput, parseCreateItemInput, resolveLinkPreview, updateCategory } from "./items";
+import { createCategory, createItem, deleteCategory, listCategories, listCategoryItems, parseCategoryInput, parseCreateItemInput, resolveLinkPreview, UNTAGGED_CATEGORY_ID, updateCategory } from "./items";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -63,7 +63,7 @@ describe("category management", () => {
       return { rows: [] };
     });
 
-    await expect(createCategory({ execute } as Client, "user-1", { name: " Inspirações ", color: "#A78BFA" })).resolves.toEqual({ id: "category-1", name: "Inspirações", color: "#A78BFA", itemCount: 3 });
+    await expect(createCategory({ execute } as Client, "user-1", { name: " Inspirações ", color: "#A78BFA" })).resolves.toEqual({ id: "category-1", name: "Inspirações", color: "#A78BFA", itemCount: 3, recentItems: [] });
     await expect(updateCategory({ execute } as Client, "user-1", "category-1", { name: "Referências", color: "#FB7185" })).resolves.toMatchObject({ id: "category-1", itemCount: 3 });
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ sql: expect.stringContaining("UPDATE categories") }));
   });
@@ -76,6 +76,43 @@ describe("category management", () => {
 
     await expect(deleteCategory({ execute } as Client, "user-1", "category-1")).resolves.toEqual({ id: "category-1" });
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ sql: expect.stringContaining("DELETE FROM categories") }));
+  });
+
+  it("lista contagens, cinco previews recentes e a categoria virtual Vazio", async () => {
+    const execute = vi.fn(async (statement: { sql: string }) => {
+      if (statement.sql.includes("SELECT c.id, c.name, c.color, COUNT(i.id)")) return { rows: [{ id: "category-1", name: "Ideias", color: "#A78BFA", item_count: 6 }] };
+      if (statement.sql.includes("WITH ranked_items")) return {
+        rows: [
+          ...Array.from({ length: 5 }, (_, index) => ({ id: `recent-${index}`, name: `Recente ${index}`, image_url: null, favicon_url: null, created_at: `2026-09-${String(12 - index).padStart(2, "0")}`, category_id: "category-1" })),
+          { id: "empty-1", name: "Sem categoria", image_url: null, favicon_url: null, created_at: "2026-09-10", category_id: null }
+        ]
+      };
+      if (statement.sql.includes("SELECT COUNT(*) AS item_count FROM items WHERE user_id")) return { rows: [{ item_count: 1 }] };
+      return { rows: [] };
+    });
+
+    await expect(listCategories({ execute } as Client, "user-1")).resolves.toEqual([
+      expect.objectContaining({ id: "category-1", itemCount: 6, recentItems: expect.arrayContaining([expect.objectContaining({ id: "recent-0" })]) }),
+      expect.objectContaining({ id: UNTAGGED_CATEGORY_ID, name: "Vazio", itemCount: 1, isVirtual: true, recentItems: [expect.objectContaining({ id: "empty-1" })] })
+    ]);
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ sql: expect.stringContaining("ROW_NUMBER() OVER") }));
+  });
+
+  it("carrega apenas os itens da categoria autorizada e rejeita categoria inexistente", async () => {
+    const execute = vi.fn(async (statement: { sql: string }) => {
+      if (statement.sql.includes("SELECT id FROM categories")) return { rows: [{ id: "category-1" }] };
+      if (statement.sql.includes("SELECT i.id, i.name")) return { rows: [{ id: "item-1", name: "Ideia", url: null, image_url: null, favicon_url: null, observation: null, created_at: "2026-09-11", updated_at: "2026-09-11", category_id: "category-1", category_name: "Ideias", category_color: "#A78BFA" }] };
+      return { rows: [] };
+    });
+
+    await expect(listCategoryItems({ execute } as Client, "user-1", "category-1")).resolves.toHaveLength(1);
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ args: ["user-1", "category-1"] }));
+
+    execute.mockResolvedValueOnce({ rows: [] });
+    await expect(listCategoryItems({ execute } as Client, "user-1", "missing")).rejects.toThrowError("category_not_found");
+
+    await expect(listCategoryItems({ execute } as Client, "user-1", UNTAGGED_CATEGORY_ID)).resolves.toHaveLength(1);
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ args: ["user-1"] }));
   });
 });
 
@@ -148,20 +185,20 @@ describe("link preview", () => {
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ sql: expect.stringContaining("INSERT INTO items") }));
   });
 
-  it("bloqueia a criação da décima primeira categoria", async () => {
+  it("bloqueia a criação da décima sexta categoria", async () => {
     const execute = vi.fn(async (statement: { sql: string }) => {
       if (statement.sql.includes("SELECT id, name, color FROM categories")) return { rows: [] };
-      if (statement.sql.includes("SELECT COUNT(*) AS category_count")) return { rows: [{ category_count: 10 }] };
+      if (statement.sql.includes("SELECT COUNT(*) AS category_count")) return { rows: [{ category_count: 15 }] };
       return { rows: [] };
     });
 
-    await expect(createItem({ execute } as Client, "user-1", { name: "Nova referência", categoryName: "Categoria 11" })).rejects.toThrowError("category_limit_reached");
+    await expect(createItem({ execute } as Client, "user-1", { name: "Nova referência", categoryName: "Categoria 16" })).rejects.toThrowError("category_limit_reached");
   });
 
-  it("bloqueia o centésimo primeiro item da categoria", async () => {
+  it("bloqueia o septuagésimo primeiro item da categoria", async () => {
     const execute = vi.fn(async (statement: { sql: string }) => {
       if (statement.sql.includes("SELECT id, name, color FROM categories")) return { rows: [{ id: "category-1", name: "Ideias", color: "#A78BFA" }] };
-      if (statement.sql.includes("SELECT COUNT(*) AS item_count")) return { rows: [{ item_count: 100 }] };
+      if (statement.sql.includes("SELECT COUNT(*) AS item_count")) return { rows: [{ item_count: 70 }] };
       return { rows: [] };
     });
 

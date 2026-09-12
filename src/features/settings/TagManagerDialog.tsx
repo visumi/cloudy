@@ -8,6 +8,7 @@ import { CATEGORY_COLOR_OPTIONS, DEFAULT_CATEGORY_COLOR, getCategoryColorStyle }
 
 const TAG_MANAGER_EXIT_DURATION = 220;
 const MAX_CATEGORY_NAME_LENGTH = 12;
+const MAX_CATEGORY_COUNT = 15;
 
 interface TagManagerDialogProps {
   open: boolean;
@@ -265,7 +266,7 @@ export function TagManagerDialog({ open, categories, onClose, onCategoriesChange
           <div>
             <h3>Tags salvas</h3>
           </div>
-          <span className="tag-manager-count">{categories.length}/10</span>
+          <span className="tag-manager-count">{categories.length}/{MAX_CATEGORY_COUNT}</span>
         </div>
         <div className="tag-manager-list" aria-label="Tags salvas">
           {sortedCategories.length === 0 ? (
@@ -297,7 +298,7 @@ function sortCategories(categories: CategorySummary[]) {
 function formatTagError(error: unknown) {
   if (!(error instanceof ApiError)) return "Não foi possível atualizar suas tags agora.";
   const messages: Record<string, string> = {
-    category_limit_reached: "Você já tem 10 tags. Remova uma para criar outra.",
+    category_limit_reached: `Você já tem ${MAX_CATEGORY_COUNT} tags. Remova uma para criar outra.`,
     category_name_taken: "Você já tem uma tag com esse nome.",
     invalid_category_name: "O nome da tag deve ter até 12 caracteres.",
     invalid_category_color: "Escolha uma cor da paleta.",

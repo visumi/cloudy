@@ -9,7 +9,7 @@ vi.mock("../../lib/api", () => ({
 }));
 
 const mockedApiRequest = vi.mocked(apiRequest);
-const categories: CategorySummary[] = [{ id: "category-1", name: "Ideias", color: "#A78BFA", itemCount: 0 }];
+const categories: CategorySummary[] = [{ id: "category-1", name: "Ideias", color: "#A78BFA", itemCount: 0, recentItems: [] }];
 
 beforeEach(() => mockedApiRequest.mockReset());
 
@@ -19,6 +19,7 @@ describe("TagManagerDialog", () => {
     mockedApiRequest.mockResolvedValueOnce({ id: "category-2", name: "Inspirações", color: "#FB7185", itemCount: 0 });
     render(<TagManagerDialog open categories={categories} onClose={vi.fn()} onCategoriesChange={onCategoriesChange} />);
 
+    expect(screen.getByText("1/15")).toBeInTheDocument();
     expect(screen.getByLabelText("Nome da tag")).toHaveAttribute("maxLength", "12");
     fireEvent.change(screen.getByLabelText("Nome da tag"), { target: { value: "Inspirações" } });
     fireEvent.click(screen.getByRole("button", { name: "Rosa" }));

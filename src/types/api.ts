@@ -15,11 +15,24 @@ export interface ItemPreview {
   faviconUrl: string | null;
 }
 
-export interface CategorySummary {
+export interface CategoryRef {
   id: string;
   name: string;
   color: string;
-  itemCount?: number;
+}
+
+export interface CategoryRecentItem {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  faviconUrl: string | null;
+  createdAt: string;
+}
+
+export interface CategorySummary extends CategoryRef {
+  itemCount: number;
+  recentItems: CategoryRecentItem[];
+  isVirtual?: boolean;
 }
 
 export interface CategoriesResponse {
@@ -33,7 +46,7 @@ export interface CloudyItem {
   imageUrl: string | null;
   faviconUrl: string | null;
   observation: string | null;
-  category: CategorySummary | null;
+  category: CategoryRef | null;
   createdAt: string;
   updatedAt: string;
 }

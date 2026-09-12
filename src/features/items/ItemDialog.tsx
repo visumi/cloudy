@@ -3,13 +3,13 @@ import { createPortal } from "react-dom";
 import { Copy, Globe, LoaderCircle, MoveRight, X } from "lucide-react";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
 import { ApiError, apiRequest } from "../../lib/api";
-import type { CategorySummary, CloudyItem, ItemPreview } from "../../types/api";
+import type { CategoryRef, CloudyItem, ItemPreview } from "../../types/api";
 import { FallbackImage } from "./ItemGraph";
 import { EMPTY_CATEGORY_COLOR, getCategoryColorStyle } from "./category-colors";
 
 interface ItemDialogProps {
   open: boolean;
-  categoryOptions: CategorySummary[];
+  categoryOptions: CategoryRef[];
   onClose: () => void;
   onCreated: (item: CloudyItem) => void;
   onClosingChange?: (closing: boolean) => void;
@@ -158,7 +158,7 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
     }
   };
 
-  const selectCategory = (category: CategorySummary) => {
+  const selectCategory = (category: CategoryRef) => {
     setCategoryName(category.name);
     setCategoryColor(category.color);
   };
@@ -245,7 +245,7 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
 
           <label className="field-label" htmlFor="item-url">Link <span>(opcional)</span></label>
           <div className="item-url-field field-with-character-count">
-            <input ref={urlInputRef} id="item-url" className="field-input" type="url" maxLength={MAX_ITEM_URL_LENGTH} placeholder="https://..." value={url} onChange={(event) => { setUrl(event.target.value); if (!event.target.value.trim()) { previewRequestId.current += 1; setPreview(null); setPreviewMessage(null); setPreviewLoading(false); } }} onBlur={() => void loadPreview()} />
+            <input ref={urlInputRef} id="item-url" className="field-input" type="text" inputMode="url" autoComplete="url" maxLength={MAX_ITEM_URL_LENGTH} placeholder="https://..." value={url} onChange={(event) => { setUrl(event.target.value); if (!event.target.value.trim()) { previewRequestId.current += 1; setPreview(null); setPreviewMessage(null); setPreviewLoading(false); } }} onBlur={() => void loadPreview()} />
             <span className="field-character-count" aria-hidden="true">{url.length}/{MAX_ITEM_URL_LENGTH}</span>
           </div>
           {previewLoading && <p className="field-hint field-hint--loading"><LoaderCircle aria-hidden="true" /> Lendo a prévia...</p>}
@@ -317,8 +317,8 @@ function formatItemError(error: unknown, fallback: string): string {
     invalid_item_name: "Escolha um nome de até 24 caracteres.",
     invalid_category_name: "Informe uma categoria de até 12 caracteres.",
     invalid_item_observation: "A observação deve ter até 2.000 caracteres.",
-    category_limit_reached: "Você pode criar até 10 categorias.",
-    category_item_limit_reached: "Essa categoria já tem 100 itens."
+    category_limit_reached: "Você pode criar até 15 categorias.",
+    category_item_limit_reached: "Essa categoria já tem 70 itens."
   };
   return messages[error.code] || fallback;
 }

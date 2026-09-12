@@ -1,5 +1,5 @@
 import { authenticate, resolveAuthenticatedUser, upsertUser } from "./access";
-import { createCategory, createItem, deleteCategory, listCategories, listItems, previewItem, updateCategory } from "./items";
+import { createCategory, createItem, deleteCategory, listCategories, listCategoryItems, listItems, previewItem, updateCategory } from "./items";
 import { createDatabaseClient, type AuthUser, type Env, type HttpError } from "./shared";
 import { HttpError as CloudyHttpError } from "./shared";
 
@@ -10,6 +10,7 @@ export interface RequestDependencies {
   resolveAuthenticatedUser: typeof resolveAuthenticatedUser;
   upsertUser: typeof upsertUser;
   listItems: typeof listItems;
+  listCategoryItems?: typeof listCategoryItems;
   createItem: typeof createItem;
   previewItem: typeof previewItem;
   listCategories?: typeof listCategories;
@@ -17,7 +18,7 @@ export interface RequestDependencies {
   updateCategory?: typeof updateCategory;
   deleteCategory?: typeof deleteCategory;
 }
-const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, createItem, previewItem, listCategories, createCategory, updateCategory, deleteCategory };
+const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, listCategoryItems, createItem, previewItem, listCategories, createCategory, updateCategory, deleteCategory };
 
 export default { fetch: (request: Request, env: Env) => handleRequest(request, env) } satisfies ExportedHandler<Env>;
 
@@ -49,6 +50,10 @@ export async function handleRequest(request: Request, env: Env, dependencies: Re
     }
     if (request.method === "POST" && url.pathname === "/categories") {
       return json(await (dependencies.createCategory ?? defaultDependencies.createCategory!)(db, user.uid, await readRequestJson(request)), 201, corsHeaders);
+    }
+    const categoryItemsMatch = url.pathname.match(/^\/categories\/([^/]+)\/items$/);
+    if (categoryItemsMatch && request.method === "GET") {
+      return json({ items: await (dependencies.listCategoryItems ?? defaultDependencies.listCategoryItems!)(db, user.uid, categoryItemsMatch[1]) }, 200, corsHeaders);
     }
     const categoryMatch = url.pathname.match(/^\/categories\/([^/]+)$/);
     if (categoryMatch && request.method === "PATCH") {

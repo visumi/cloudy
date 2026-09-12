@@ -1,10 +1,21 @@
-import type { CloudyItem } from "../../types/api";
+import type { CategorySummary, CloudyItem } from "../../types/api";
 
 export interface GraphCluster {
   categoryId: string;
   categoryName: string;
   left: number;
   top: number;
+}
+
+export interface CategoryGraphNode {
+  category: CategorySummary;
+  left: number;
+  top: number;
+}
+
+export interface CategoryGraphLayout {
+  nodes: CategoryGraphNode[];
+  connections: GraphConnection[];
 }
 
 export interface GraphNode {
@@ -30,6 +41,122 @@ export interface ItemGraphLayout {
 }
 
 const UNTAGGED_CATEGORY_ID = "__untagged__";
+
+export function buildCategoryGraphLayout(categories: CategorySummary[]): CategoryGraphLayout {
+  const nodes: CategoryGraphNode[] = [];
+  const connections: GraphConnection[] = [];
+  const ringCount = categories.length > 11 ? 2 : 1;
+  const outerCount = ringCount === 1 ? categories.length : Math.ceil(categories.length / 2);
+
+  categories.forEach((category, index) => {
+    const ring = ringCount === 1 || index < outerCount ? 0 : 1;
+    const indexInRing = ring === 0 ? index : index - outerCount;
+    const countInRing = ring === 0 ? outerCount : categories.length - outerCount;
+    const isTwoCategoryBranch = categories.length === 2 && ring === 0;
+    const isExpandedSingleRing = ringCount === 1 && categories.length > 6;
+    const angle = (isTwoCategoryBranch ? -Math.PI * 2 / 3 : -Math.PI / 2) + (indexInRing * Math.PI * 2) / Math.max(countInRing, 1) + (ring === 1 ? Math.PI / Math.max(countInRing, 1) : 0);
+    const radiusX = ring === 0 ? (isTwoCategoryBranch ? 42 : isExpandedSingleRing ? 42 : ringCount === 1 ? 34 : 44) : 29;
+    const radiusY = ring === 0 ? (isExpandedSingleRing ? 35 : ringCount === 1 ? 22 : 40) : 20;
+    const isInnerBottomCard = ring === 1 && indexInRing === Math.floor(countInRing / 2);
+    const left = isInnerBottomCard ? 50 : clamp(50 + Math.cos(angle) * radiusX, 10, 90);
+    const bottomSideLift = ring === 0 ? Math.max(Math.sin(angle), 0) * Math.abs(Math.cos(angle)) * 14 : 0;
+    const top = isInnerBottomCard ? 20 : clamp(48 + Math.sin(angle) * radiusY - bottomSideLift, 9, isExpandedSingleRing ? 82 : ringCount === 1 ? 66 : 78);
+    nodes.push({ category, left, top });
+    connections.push({ kind: "core", x1: 50, y1: 48, x2: left, y2: top });
+  });
+
+  return { nodes, connections };
+}
+
+export function buildCategoryItemGraphLayout(items: CloudyItem[]): ItemGraphLayout {
+  const orderedItems = [...items].sort((first, second) => second.createdAt.localeCompare(first.createdAt) || second.id.localeCompare(first.id));
+  const positions = createCircularItemPositions(orderedItems.length);
+  const nodes: GraphNode[] = orderedItems.map((item, index) => ({
+    item,
+    left: positions[index].left,
+    top: positions[index].top,
+    categoryLeft: 50,
+    categoryTop: 48
+  }));
+
+  return { clusters: [], nodes, connections: createCategoryItemConnections(nodes) };
+}
+
+function createCategoryItemConnections(nodes: GraphNode[]): GraphConnection[] {
+  if (nodes.length === 0) return [];
+
+  const anchorStride = nodes.length > 20 ? 4 : nodes.length > 10 ? 3 : 2;
+  const anchorIndexes = nodes
+    .map((_, index) => index)
+    .filter((index) => index === 0 || index === nodes.length - 1 || index % anchorStride === 0);
+  const connections: GraphConnection[] = anchorIndexes.map((index) => ({
+    kind: "category",
+    x1: 50,
+    y1: 48,
+    x2: nodes[index].left,
+    y2: nodes[index].top
+  }));
+
+  for (let anchorIndex = 1; anchorIndex < anchorIndexes.length; anchorIndex += 2) {
+    const previousNode = nodes[anchorIndexes[anchorIndex - 1]];
+    const currentNode = nodes[anchorIndexes[anchorIndex]];
+    connections.push({ kind: "item", x1: previousNode.left, y1: previousNode.top, x2: currentNode.left, y2: currentNode.top });
+  }
+
+  return connections;
+}
+
+const ITEM_LAYOUT_BOUNDS = { leftMin: 8, leftMax: 92, topMin: 13, topMax: 88 };
+
+function createCircularItemPositions(itemCount: number): Array<{ left: number; top: number }> {
+  if (itemCount === 0) return [];
+
+  const ringCounts = createCircularRingCounts(itemCount);
+  const ringTotal = ringCounts.length;
+  const positions: Array<{ left: number; top: number }> = [];
+
+  ringCounts.forEach((ringItemCount, ringIndex) => {
+    const isSingleRing = ringTotal === 1;
+    const ringProgress = isSingleRing ? 0 : ringIndex / Math.max(ringTotal - 1, 1);
+    const radiusX = isSingleRing
+      ? itemCount <= 4 ? 28 : itemCount <= 8 ? 34 : 38
+      : itemCount <= 4 ? 28 + ringProgress * 6
+        : itemCount <= 8 ? 30 + ringProgress * 8
+          : itemCount <= 12 ? 28 + ringProgress * 20
+            : 28 + ringProgress * 20;
+    const radiusY = isSingleRing
+      ? itemCount <= 4 ? 25 : itemCount <= 8 ? 28 : 30
+      : itemCount <= 4 ? 25 + ringProgress * 4
+        : itemCount <= 8 ? 26 + ringProgress * 5
+          : itemCount <= 12 ? 25 + ringProgress * 15
+            : 25 + ringProgress * 14;
+    const angleOffset = ringIndex % 2 === 0 ? 0 : Math.PI / ringItemCount;
+
+    for (let itemIndex = 0; itemIndex < ringItemCount; itemIndex += 1) {
+      const angle = -Math.PI / 2 + angleOffset + (itemIndex * Math.PI * 2) / ringItemCount;
+      const left = 50 + Math.cos(angle) * radiusX;
+      const top = 48 + Math.sin(angle) * radiusY;
+      positions.push({
+        left: isSingleRing ? clamp(left, ITEM_LAYOUT_BOUNDS.leftMin, ITEM_LAYOUT_BOUNDS.leftMax) : left,
+        top: isSingleRing ? clamp(top, ITEM_LAYOUT_BOUNDS.topMin, ITEM_LAYOUT_BOUNDS.topMax) : top
+      });
+    }
+  });
+
+  return positions;
+}
+
+function createCircularRingCounts(itemCount: number): number[] {
+  if (itemCount === 1) return [1];
+  if (itemCount <= 4) return [1, itemCount - 1];
+  if (itemCount <= 8) return [Math.ceil(itemCount * .4), itemCount - Math.ceil(itemCount * .4)];
+  if (itemCount <= 12) return [4, itemCount - 4];
+  if (itemCount <= 28) return [Math.ceil(itemCount * .4), itemCount - Math.ceil(itemCount * .4)];
+  if (itemCount <= 48) return [8, 14, itemCount - 22];
+  const firstRingCount = Math.ceil(itemCount * .23);
+  const secondRingCount = Math.ceil(itemCount * .31);
+  return [firstRingCount, secondRingCount, itemCount - firstRingCount - secondRingCount];
+}
 
 export function buildItemGraphLayout(items: CloudyItem[]): ItemGraphLayout {
   const grouped = new Map<string, CloudyItem[]>();

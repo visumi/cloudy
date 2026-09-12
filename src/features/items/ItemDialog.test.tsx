@@ -34,6 +34,7 @@ describe("ItemDialog", () => {
     expect(screen.getByText("Preencha os dados abaixo")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Nome do item")).toBeInTheDocument();
     expect(screen.getByLabelText("Nome")).toHaveAttribute("maxLength", "24");
+    expect(screen.getByLabelText(/Link/)).not.toBeRequired();
     expect(screen.getByText("0/2048", { selector: ".field-character-count" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Vazio" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("Vazio", { selector: ".item-live-preview-category > span:last-child" })).toBeInTheDocument();

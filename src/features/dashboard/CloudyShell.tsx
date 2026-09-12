@@ -1,14 +1,16 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "../../lib/api";
 import { useAuth } from "../../hooks/use-auth";
 import { CloudActionCloud } from "./CloudActionCloud";
 import { ItemDialog } from "../items/ItemDialog";
 import { ItemGraph } from "../items/ItemGraph";
 import { TagManagerDialog } from "../settings/TagManagerDialog";
-import type { CategoriesResponse, CategorySummary, CloudyItem, ItemsResponse } from "../../types/api";
+import { EMPTY_CATEGORY_COLOR } from "../items/category-colors";
+import type { CategoriesResponse, CategoryRecentItem, CategorySummary, CloudyItem, ItemsResponse } from "../../types/api";
 
 const CloudMascot = lazy(() => import("./CloudMascot").then(({ CloudMascot: Mascot }) => ({ default: Mascot })));
 const ACTION_CLOUD_IDLE_DELAY = 4200;
+const UNTAGGED_CATEGORY_ID = "__untagged__";
 
 function useActionCloudIdle(menuOpen: boolean) {
   const [isHidden, setIsHidden] = useState(false);
@@ -49,80 +51,109 @@ export function CloudyShell() {
   const [isItemDialogClosing, setIsItemDialogClosing] = useState(false);
   const [isItemDetailOpen, setIsItemDetailOpen] = useState(false);
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
-  const [items, setItems] = useState<CloudyItem[]>([]);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
-  const [itemsLoading, setItemsLoading] = useState(true);
-  const [itemsError, setItemsError] = useState<string | null>(null);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [categoryItems, setCategoryItems] = useState<Record<string, CloudyItem[]>>({});
+  const [categoryItemsLoading, setCategoryItemsLoading] = useState(false);
+  const [categoryItemsError, setCategoryItemsError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const categoryRequestId = useRef(0);
   const isActionCloudHidden = useActionCloudIdle(isMenuOpen);
   const isActionCloudSuppressed = isActionCloudHidden || isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen;
   const isModalOpen = isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen;
   const photoURL = user?.photoURL ?? profile?.picture;
   const email = user?.email ?? profile?.email;
-  const itemCategories = useMemo(() => {
-    const categories = new Map<string, CategorySummary>();
-    items.forEach((item) => {
-      if (item.category) categories.set(item.category.id, item.category);
-    });
-    return [...categories.values()].sort((first, second) => first.name.localeCompare(second.name, "pt-BR"));
-  }, [items]);
-  const categoryOptions = categories.length > 0 ? categories : itemCategories;
+  const selectedCategory = categories.find((category) => category.id === selectedCategoryId) ?? null;
+  const managedCategories = useMemo(() => categories.filter((category) => !category.isVirtual), [categories]);
+  const visibleItems = selectedCategoryId ? categoryItems[selectedCategoryId] ?? [] : [];
 
-  const loadItems = useCallback(async () => {
-    setItemsLoading(true);
-    setItemsError(null);
+  const loadCategories = useCallback(async () => {
+    setCategoriesLoading(true);
+    setCategoriesError(null);
     try {
-      const response = await apiRequest<ItemsResponse>("/items");
-      setItems(response.items);
+      const response = await apiRequest<CategoriesResponse>("/categories");
+      setCategories(response.categories);
     } catch {
-      setItemsError("Não conseguimos abrir seus itens agora.");
+      setCategoriesError("Não conseguimos abrir suas categorias agora.");
     } finally {
-      setItemsLoading(false);
+      setCategoriesLoading(false);
     }
   }, []);
 
-  useEffect(() => { void loadItems(); }, [loadItems]);
+  useEffect(() => { void loadCategories(); }, [loadCategories]);
 
-  useEffect(() => {
-    let active = true;
-    void apiRequest<CategoriesResponse>("/categories").then((response) => {
-      if (active) setCategories(response.categories);
-    }).catch(() => {
-      if (active) setCategories([]);
-    });
-    return () => { active = false; };
-  }, []);
-
-  const handleItemCreated = useCallback((item: CloudyItem) => {
-    setItems((currentItems) => [item, ...currentItems]);
-    if (!item.category) {
-      setSavedMessage("Referência salva na sua nuvem.");
-      window.setTimeout(() => setSavedMessage(null), 2600);
+  const loadCategoryItems = useCallback(async (categoryId: string) => {
+    const requestId = ++categoryRequestId.current;
+    setSelectedCategoryId(categoryId);
+    setCategoryItemsError(null);
+    if (categoryItems[categoryId]) {
+      setCategoryItemsLoading(false);
       return;
     }
-    const category = item.category;
-    setCategories((currentCategories) => {
-      const existing = currentCategories.find((currentCategory) => currentCategory.id === category.id);
-      if (existing) return currentCategories.map((currentCategory) => currentCategory.id === category.id ? { ...currentCategory, ...category, itemCount: (currentCategory.itemCount ?? 0) + 1 } : currentCategory);
-      return [...currentCategories, { ...category, itemCount: 1 }].sort((first, second) => first.name.localeCompare(second.name, "pt-BR"));
+
+    setCategoryItemsLoading(true);
+    try {
+      const response = await apiRequest<ItemsResponse>(`/categories/${encodeURIComponent(categoryId)}/items`);
+      if (requestId !== categoryRequestId.current) return;
+      setCategoryItems((current) => ({ ...current, [categoryId]: response.items }));
+    } catch {
+      if (requestId !== categoryRequestId.current) return;
+      setCategoryItemsError("Não conseguimos abrir os itens desta categoria.");
+    } finally {
+      if (requestId === categoryRequestId.current) setCategoryItemsLoading(false);
+    }
+  }, [categoryItems]);
+
+  const handleCategoryBack = useCallback(() => {
+    categoryRequestId.current += 1;
+    setSelectedCategoryId(null);
+    setCategoryItemsLoading(false);
+    setCategoryItemsError(null);
+  }, []);
+
+  useEffect(() => {
+    if (selectedCategoryId && !selectedCategory) handleCategoryBack();
+  }, [handleCategoryBack, selectedCategory, selectedCategoryId]);
+
+  const handleItemCreated = useCallback((item: CloudyItem) => {
+    const categoryId = item.category?.id ?? UNTAGGED_CATEGORY_ID;
+    const recentItem = toCategoryRecentItem(item);
+    setCategories((currentCategories) => updateCategorySummary(currentCategories, item, recentItem));
+    setCategoryItems((currentItems) => {
+      if (!Object.prototype.hasOwnProperty.call(currentItems, categoryId)) return currentItems;
+      return { ...currentItems, [categoryId]: [item, ...currentItems[categoryId].filter((currentItem) => currentItem.id !== item.id)] };
     });
-    setSavedMessage("Referência salva na sua nuvem.");
-    window.setTimeout(() => setSavedMessage(null), 2600);
+    showSavedMessage(setSavedMessage);
   }, []);
 
   const handleCategoriesChange = useCallback((nextCategories: CategorySummary[]) => {
-    setCategories(nextCategories);
-    setItems((currentItems) => currentItems.map((item) => {
-      if (!item.category) return item;
-      const nextCategory = nextCategories.find((category) => category.id === item.category?.id);
-      return { ...item, category: nextCategory ? { id: nextCategory.id, name: nextCategory.name, color: nextCategory.color } : null };
-    }));
-  }, []);
+    const virtualCategory = categories.find((category) => category.isVirtual);
+    const next = sortCategories([...nextCategories.filter((category) => !category.isVirtual), ...(virtualCategory ? [virtualCategory] : [])]);
+    setCategories(next);
+    setCategoryItems({});
+    if (selectedCategoryId && !next.some((category) => category.id === selectedCategoryId)) handleCategoryBack();
+    void loadCategories();
+  }, [categories, handleCategoryBack, loadCategories, selectedCategoryId]);
+
+  const retry = selectedCategoryId ? () => void loadCategoryItems(selectedCategoryId) : () => void loadCategories();
 
   return (
     <main className="app-page" inert={isModalOpen || undefined}>
       <section className="workspace" aria-label="Espaço do Cloudy">
-        <ItemGraph items={items} isLoading={itemsLoading} error={itemsError} onRetry={() => void loadItems()} onAddLink={() => setIsItemDialogOpen(true)} onDetailOpenChange={setIsItemDetailOpen}>
+        <ItemGraph
+          categories={categories}
+          selectedCategory={selectedCategory}
+          items={visibleItems}
+          isLoading={selectedCategoryId ? categoryItemsLoading : categoriesLoading}
+          error={selectedCategoryId ? categoryItemsError : categoriesError}
+          onRetry={retry}
+          onAddLink={() => setIsItemDialogOpen(true)}
+          onCategorySelect={(categoryId) => void loadCategoryItems(categoryId)}
+          onCategoryBack={handleCategoryBack}
+          onDetailOpenChange={setIsItemDetailOpen}
+        >
           <Suspense fallback={<div className="cloud-mascot" aria-hidden="true" />}>
             <CloudMascot />
           </Suspense>
@@ -132,8 +163,51 @@ export function CloudyShell() {
         <CloudActionCloud email={email} name={profile?.name} onMenuOpenChange={setIsMenuOpen} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} onAddLink={() => setIsItemDialogOpen(true)} onTagsOpen={() => setIsTagManagerOpen(true)} />
       </aside>
       {savedMessage && <p className="workspace-toast" role="status">{savedMessage}</p>}
-      <ItemDialog open={isItemDialogOpen} categoryOptions={categoryOptions} onClose={() => setIsItemDialogOpen(false)} onCreated={handleItemCreated} onClosingChange={setIsItemDialogClosing} />
-      <TagManagerDialog open={isTagManagerOpen} categories={categories} onClose={() => setIsTagManagerOpen(false)} onCategoriesChange={handleCategoriesChange} />
+      <ItemDialog open={isItemDialogOpen} categoryOptions={managedCategories} onClose={() => setIsItemDialogOpen(false)} onCreated={handleItemCreated} onClosingChange={setIsItemDialogClosing} />
+      <TagManagerDialog open={isTagManagerOpen} categories={managedCategories} onClose={() => setIsTagManagerOpen(false)} onCategoriesChange={handleCategoriesChange} />
     </main>
   );
+}
+
+function toCategoryRecentItem(item: CloudyItem): CategoryRecentItem {
+  return { id: item.id, name: item.name, imageUrl: item.imageUrl, faviconUrl: item.faviconUrl, createdAt: item.createdAt };
+}
+
+function updateCategorySummary(categories: CategorySummary[], item: CloudyItem, recentItem: CategoryRecentItem): CategorySummary[] {
+  const categoryId = item.category?.id ?? UNTAGGED_CATEGORY_ID;
+  const existing = categories.find((category) => category.id === categoryId);
+  if (existing) {
+    return categories.map((category) => category.id === categoryId ? {
+      ...category,
+      itemCount: category.itemCount + 1,
+      recentItems: [recentItem, ...category.recentItems.filter((currentItem) => currentItem.id !== recentItem.id)].sort(compareRecentItems).slice(0, 5)
+    } : category);
+  }
+
+  const newCategory: CategorySummary = item.category ? {
+    ...item.category,
+    itemCount: 1,
+    recentItems: [recentItem]
+  } : {
+    id: UNTAGGED_CATEGORY_ID,
+    name: "Vazio",
+    color: EMPTY_CATEGORY_COLOR,
+    itemCount: 1,
+    recentItems: [recentItem],
+    isVirtual: true
+  };
+  return sortCategories([...categories, newCategory]);
+}
+
+function compareRecentItems(first: CategoryRecentItem, second: CategoryRecentItem): number {
+  return second.createdAt.localeCompare(first.createdAt) || second.id.localeCompare(first.id);
+}
+
+function sortCategories(categories: CategorySummary[]): CategorySummary[] {
+  return [...categories].sort((first, second) => first.name.localeCompare(second.name, "pt-BR"));
+}
+
+function showSavedMessage(setSavedMessage: (message: string | null) => void) {
+  setSavedMessage("Referência salva na sua nuvem.");
+  window.setTimeout(() => setSavedMessage(null), 2600);
 }

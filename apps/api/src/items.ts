@@ -3,13 +3,14 @@ import { type DbRow, HttpError, readDbString } from "./shared";
 
 const PREVIEW_TIMEOUT_MS = 5000;
 const PREVIEW_BODY_LIMIT = 256 * 1024;
-const MAX_CATEGORIES_PER_USER = 10;
-const MAX_ITEMS_PER_CATEGORY = 100;
+const MAX_CATEGORIES_PER_USER = 15;
+const MAX_ITEMS_PER_CATEGORY = 70;
 const MAX_ITEM_NAME_LENGTH = 24;
 const MAX_CATEGORY_NAME_LENGTH = 12;
 const MAX_ITEM_URL_LENGTH = 2048;
 const MAX_ITEM_OBSERVATION_LENGTH = 2000;
 const DEFAULT_CATEGORY_COLOR = "#38BDF8";
+export const UNTAGGED_CATEGORY_ID = "__untagged__";
 const CATEGORY_COLORS = new Set([
   "#38BDF8",
   "#A78BFA",
@@ -44,6 +45,16 @@ export interface CategoryRecord {
   name: string;
   color: string;
   itemCount: number;
+  recentItems: CategoryRecentItem[];
+  isVirtual?: boolean;
+}
+
+export interface CategoryRecentItem {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  faviconUrl: string | null;
+  createdAt: string;
 }
 
 export interface CreateItemInput {
@@ -69,7 +80,28 @@ export async function listCategories(db: Client, userId: string): Promise<Catego
       ORDER BY c.name COLLATE NOCASE ASC`,
     args: [userId]
   });
-  return result.rows.map(mapCategoryRow);
+  const recentItems = await listRecentItemsByCategory(db, userId);
+  const categories = result.rows.map((row) => {
+    const category = mapCategoryRow(row);
+    return { ...category, recentItems: recentItems.get(category.id) ?? [] };
+  });
+
+  const untaggedCountResult = await db.execute({
+    sql: "SELECT COUNT(*) AS item_count FROM items WHERE user_id = ? AND category_id IS NULL",
+    args: [userId]
+  });
+  const untaggedCount = readOptionalDbCount(untaggedCountResult.rows[0], "item_count");
+  if (untaggedCount > 0) {
+    categories.push({
+      id: UNTAGGED_CATEGORY_ID,
+      name: "Vazio",
+      color: "#CBD5E1",
+      itemCount: untaggedCount,
+      recentItems: recentItems.get(UNTAGGED_CATEGORY_ID) ?? [],
+      isVirtual: true
+    });
+  }
+  return categories;
 }
 
 export async function createCategory(db: Client, userId: string, payload: unknown): Promise<CategoryRecord> {
@@ -146,6 +178,29 @@ export async function listItems(db: Client, userId: string): Promise<ItemRecord[
       WHERE i.user_id = ?
       ORDER BY i.created_at DESC, i.id DESC`,
     args: [userId]
+  });
+  return result.rows.map(mapItemRow);
+}
+
+export async function listCategoryItems(db: Client, userId: string, categoryId: string): Promise<ItemRecord[]> {
+  if (categoryId !== UNTAGGED_CATEGORY_ID) {
+    const category = await db.execute({
+      sql: "SELECT id FROM categories WHERE id = ? AND user_id = ? LIMIT 1",
+      args: [categoryId, userId]
+    });
+    if (category.rows.length === 0) throw new HttpError(404, "category_not_found");
+  }
+
+  const filter = categoryId === UNTAGGED_CATEGORY_ID ? "i.category_id IS NULL" : "i.category_id = ?";
+  const args = categoryId === UNTAGGED_CATEGORY_ID ? [userId] : [userId, categoryId];
+  const result = await db.execute({
+    sql: `SELECT i.id, i.name, i.url, i.image_url, i.favicon_url, i.observation,
+      i.created_at, i.updated_at, c.id AS category_id, c.name AS category_name, c.color AS category_color
+      FROM items i
+      LEFT JOIN categories c ON c.id = i.category_id AND c.user_id = i.user_id
+      WHERE i.user_id = ? AND ${filter}
+      ORDER BY i.created_at DESC, i.id DESC`,
+    args
   });
   return result.rows.map(mapItemRow);
 }
@@ -332,7 +387,8 @@ async function getCategory(db: Client, userId: string, categoryId: string): Prom
   });
   const row = result.rows[0] as DbRow | undefined;
   if (!row) throw new HttpError(404, "category_not_found");
-  return mapCategoryRow(row);
+  const category = mapCategoryRow(row);
+  return { ...category, recentItems: (await listRecentItemsForCategory(db, userId, categoryId)) };
 }
 
 async function ensureCategoryItemCapacity(db: Client, userId: string, categoryId: string): Promise<void> {
@@ -366,7 +422,54 @@ function mapCategoryRow(row: DbRow): CategoryRecord {
     id: readDbString(row, "id"),
     name: readDbString(row, "name"),
     color: readCategoryColor(row.color),
-    itemCount: readDbCount(row, "item_count")
+    itemCount: readDbCount(row, "item_count"),
+    recentItems: []
+  };
+}
+
+async function listRecentItemsByCategory(db: Client, userId: string): Promise<Map<string, CategoryRecentItem[]>> {
+  const result = await db.execute({
+    sql: `WITH ranked_items AS (
+      SELECT i.id, i.name, i.image_url, i.favicon_url, i.created_at, i.category_id,
+        ROW_NUMBER() OVER (PARTITION BY i.category_id ORDER BY i.created_at DESC, i.id DESC) AS item_rank
+      FROM items i
+      WHERE i.user_id = ?
+    )
+    SELECT id, name, image_url, favicon_url, created_at, category_id
+    FROM ranked_items
+    WHERE item_rank <= 5
+    ORDER BY category_id, created_at DESC, id DESC`,
+    args: [userId]
+  });
+  const grouped = new Map<string, CategoryRecentItem[]>();
+  for (const row of result.rows as DbRow[]) {
+    const categoryId = readNullableString(row, "category_id") ?? UNTAGGED_CATEGORY_ID;
+    const items = grouped.get(categoryId) ?? [];
+    items.push(mapCategoryRecentItem(row));
+    grouped.set(categoryId, items);
+  }
+  return grouped;
+}
+
+async function listRecentItemsForCategory(db: Client, userId: string, categoryId: string): Promise<CategoryRecentItem[]> {
+  const result = await db.execute({
+    sql: `SELECT i.id, i.name, i.image_url, i.favicon_url, i.created_at
+      FROM items i
+      WHERE i.user_id = ? AND i.category_id = ?
+      ORDER BY i.created_at DESC, i.id DESC
+      LIMIT 5`,
+    args: [userId, categoryId]
+  });
+  return (result.rows as DbRow[]).map(mapCategoryRecentItem);
+}
+
+function mapCategoryRecentItem(row: DbRow): CategoryRecentItem {
+  return {
+    id: readDbString(row, "id"),
+    name: readDbString(row, "name"),
+    imageUrl: readNullableString(row, "image_url"),
+    faviconUrl: readNullableString(row, "favicon_url"),
+    createdAt: readDbString(row, "created_at")
   };
 }
 
@@ -384,6 +487,11 @@ function readDbCount(row: DbRow | undefined, key: string): number {
   if (typeof value === "bigint") return Number(value);
   if (typeof value === "string" && Number.isFinite(Number(value))) return Number(value);
   throw new HttpError(500, `invalid_db_${key}`);
+}
+
+function readOptionalDbCount(row: DbRow | undefined, key: string): number {
+  if (!row || row[key] == null) return 0;
+  return readDbCount(row, key);
 }
 
 function readNullableString(row: DbRow, key: string): string | null {

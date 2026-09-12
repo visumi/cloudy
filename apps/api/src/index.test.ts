@@ -49,6 +49,15 @@ describe("API base", () => {
     expect(listItems).toHaveBeenCalledWith(expect.anything(), "uid-1");
   });
 
+  it("lista itens sob demanda para uma categoria", async () => {
+    const listCategoryItems = vi.fn(async () => [{ id: "item-1" }]);
+    const dependencies: RequestDependencies = { authenticate: vi.fn(async () => identity), createDatabaseClient: vi.fn(() => ({} as never)), resolveAuthenticatedUser: vi.fn(async () => profile), upsertUser: vi.fn(), listItems: vi.fn(), listCategoryItems, createItem: vi.fn(), previewItem: vi.fn() };
+    const response = await handleRequest(new Request("https://cloudy-api.isumi.com.br/categories/category-1/items", { headers: { Authorization: "Bearer test" } }), env, dependencies);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ items: [{ id: "item-1" }] });
+    expect(listCategoryItems).toHaveBeenCalledWith(expect.anything(), "uid-1", "category-1");
+  });
+
   it("cria item e retorna status 201", async () => {
     const createItem = vi.fn(async () => ({ id: "item-1", name: "Referência" }));
     const dependencies: RequestDependencies = { authenticate: vi.fn(async () => identity), createDatabaseClient: vi.fn(() => ({} as never)), resolveAuthenticatedUser: vi.fn(async () => profile), upsertUser: vi.fn(), listItems: vi.fn(), createItem, previewItem: vi.fn() };

@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type AnimationEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type AnimationEvent, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Check, Copy, Globe, X } from "lucide-react";
+import { ArrowLeft, Check, Copy, Globe, X } from "lucide-react";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
-import type { CloudyItem } from "../../types/api";
-import { buildItemGraphLayout } from "./item-graph";
+import type { CategorySummary, CloudyItem } from "../../types/api";
+import { buildCategoryGraphLayout, buildCategoryItemGraphLayout } from "./item-graph";
 import { EMPTY_CATEGORY_COLOR, getCategoryColorStyle } from "./category-colors";
 
 const FALLBACK_IMAGE = "/cloudy-icon.png";
@@ -37,19 +37,42 @@ async function copyToClipboard(value: string) {
 }
 
 interface ItemGraphProps {
+  categories: CategorySummary[];
   items: CloudyItem[];
+  selectedCategory: CategorySummary | null;
   isLoading: boolean;
   error: string | null;
   onRetry: () => void;
   onAddLink: () => void;
+  onCategorySelect: (categoryId: string) => void;
+  onCategoryBack: () => void;
   onDetailOpenChange?: (open: boolean) => void;
   children: ReactNode;
 }
 
-export function ItemGraph({ items, isLoading, error, onRetry, onAddLink, onDetailOpenChange, children }: ItemGraphProps) {
-  const layout = useMemo(() => buildItemGraphLayout(items), [items]);
+interface GraphTransform {
+  x: number;
+  y: number;
+  scale: number;
+}
+
+const DEFAULT_GRAPH_ZOOM = 0.9;
+const CATEGORY_GRAPH_TRANSITION_DURATION = 620;
+const OVERVIEW_GRAPH_TRANSITION_DURATION = 540;
+
+type GraphViewTransition = "overview" | "to-category" | "category" | "to-overview";
+
+export function ItemGraph({ categories, items, selectedCategory, isLoading, error, onRetry, onAddLink, onCategorySelect, onCategoryBack, onDetailOpenChange, children }: ItemGraphProps) {
+  const categoryLayout = useMemo(() => buildCategoryGraphLayout(categories), [categories]);
+  const itemLayout = useMemo(() => buildCategoryItemGraphLayout(items), [items]);
+  const isCategoryView = selectedCategory !== null;
+  const [viewTransition, setViewTransition] = useState<GraphViewTransition>(selectedCategory ? "category" : "overview");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [detailItem, setDetailItem] = useState<CloudyItem | null>(null);
+  const [graphTransform, setGraphTransform] = useState<GraphTransform>({ x: 0, y: 0, scale: getDefaultGraphZoom() });
+  const dragRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
+  const previousCategoryRef = useRef<CategorySummary | null>(selectedCategory);
+  const viewTransitionTimerRef = useRef<number | undefined>(undefined);
   const selectedItem = items.find((item) => item.id === selectedItemId) || null;
 
   useEffect(() => {
@@ -64,50 +87,179 @@ export function ItemGraph({ items, isLoading, error, onRetry, onAddLink, onDetai
     onDetailOpenChange?.(detailItem !== null);
   }, [detailItem, onDetailOpenChange]);
 
+  useEffect(() => {
+    setSelectedItemId(null);
+    setDetailItem(null);
+    setGraphTransform({ x: 0, y: 0, scale: getDefaultGraphZoom() });
+  }, [isCategoryView, items.length, selectedCategory?.id]);
+
+  useEffect(() => {
+    const previousCategory = previousCategoryRef.current;
+    const nextCategory = selectedCategory;
+    previousCategoryRef.current = nextCategory;
+    if (viewTransitionTimerRef.current !== undefined) window.clearTimeout(viewTransitionTimerRef.current);
+
+    const previousMode = previousCategory ? "category" : "overview";
+    const nextMode = nextCategory ? "category" : "overview";
+    if (previousMode === nextMode && previousCategory?.id === nextCategory?.id) {
+      setViewTransition(nextMode);
+      return;
+    }
+
+    const enteringCategory = nextMode === "category";
+    setViewTransition(enteringCategory ? "to-category" : "to-overview");
+    viewTransitionTimerRef.current = window.setTimeout(() => {
+      setViewTransition(enteringCategory ? "category" : "overview");
+      viewTransitionTimerRef.current = undefined;
+    }, enteringCategory ? CATEGORY_GRAPH_TRANSITION_DURATION : OVERVIEW_GRAPH_TRANSITION_DURATION);
+
+    return () => {
+      if (viewTransitionTimerRef.current !== undefined) window.clearTimeout(viewTransitionTimerRef.current);
+    };
+  }, [selectedCategory?.id]);
+
+  useEffect(() => () => {
+    if (viewTransitionTimerRef.current !== undefined) window.clearTimeout(viewTransitionTimerRef.current);
+  }, []);
+
+  const categoryNodesState = viewTransition === "to-category" ? "exiting" : viewTransition === "to-overview" ? "entering" : viewTransition === "overview" ? "active" : "hidden";
+  const itemNodesState = viewTransition === "to-category" ? "entering" : viewTransition === "to-overview" ? "exiting" : viewTransition === "category" ? "active" : "hidden";
+  const graphLayerStyle = isCategoryView ? {
+    transform: `translate3d(${graphTransform.x}px, ${graphTransform.y}px, 0) scale(${graphTransform.scale})`
+  } : undefined;
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!isCategoryView || (event.target as HTMLElement).closest("button")) return;
+    dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current || dragRef.current.pointerId !== event.pointerId) return;
+    const deltaX = event.clientX - dragRef.current.x;
+    const deltaY = event.clientY - dragRef.current.y;
+    dragRef.current = { ...dragRef.current, x: event.clientX, y: event.clientY };
+    setGraphTransform((current) => ({ ...current, x: current.x + deltaX, y: current.y + deltaY }));
+  };
+
+  const stopDragging = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
+  };
+
   return (
-    <div className="graph-scene">
-      <svg className="graph-connections" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {layout.connections.map((connection, index) => (
-          <line className={`graph-connection graph-connection--${connection.kind}`} key={`${connection.kind}-${index}`} x1={connection.x1} y1={connection.y1} x2={connection.x2} y2={connection.y2} />
-        ))}
-      </svg>
-      <div className="graph-cloud">{children}</div>
-      <div className="graph-nodes" aria-label="Itens salvos">
-        {layout.nodes.map(({ item, left, top }) => (
-          <button
-            className={`item-node${selectedItemId === item.id ? " item-node--selected" : ""}`}
-            key={item.id}
-            type="button"
-            style={{ left: `${left}%`, top: `${top}%` }}
-            aria-label={`${item.name}, ${item.category ? `categoria ${item.category.name}` : "categoria Vazio"}`}
-            aria-pressed={selectedItemId === item.id}
-            onClick={() => { setSelectedItemId(item.id); setDetailItem(item); }}
-          >
-            <FallbackImage src={item.imageUrl} alt="" className="item-node-image" />
-            <span className="item-node-copy">
-              <strong>{item.name}</strong>
-            <small className="item-node-category" style={getCategoryColorStyle(item.category?.color ?? EMPTY_CATEGORY_COLOR)}><span aria-hidden="true" /><span>{item.category?.name ?? "Vazio"}</span></small>
-            </span>
+    <div className={`graph-scene${isCategoryView ? " graph-scene--category" : " graph-scene--overview"}`}>
+      {selectedCategory && (
+        <div className="graph-category-toolbar">
+          <button className="graph-back-button" type="button" onClick={onCategoryBack} aria-label="Voltar para todas as categorias" title="Voltar para todas as categorias">
+            <ArrowLeft aria-hidden="true" />
           </button>
-        ))}
+          <div className="graph-category-heading" aria-live="polite">
+            <strong>{selectedCategory.name}</strong>
+            <span>{formatItemCount(selectedCategory.itemCount)}</span>
+          </div>
+        </div>
+      )}
+
+      <div
+        className={`graph-viewport${isCategoryView ? " graph-viewport--interactive" : ""}`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={stopDragging}
+        onPointerCancel={stopDragging}
+      >
+        <div className="graph-zoom-layer" style={graphLayerStyle as CSSProperties}>
+          <svg className="graph-connections" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <g className="graph-connection-layer graph-connection-layer--categories" data-state={categoryNodesState}>
+              {categoryLayout.connections.map((connection, index) => (
+                <line className={`graph-connection graph-connection--${connection.kind}`} key={`category-${connection.kind}-${index}`} x1={connection.x1} y1={connection.y1} x2={connection.x2} y2={connection.y2} />
+              ))}
+            </g>
+            <g className="graph-connection-layer graph-connection-layer--items" data-state={itemNodesState}>
+              {itemLayout.connections.map((connection, index) => (
+                <line className={`graph-connection graph-connection--${connection.kind}`} key={`item-${connection.kind}-${index}`} x1={connection.x1} y1={connection.y1} x2={connection.x2} y2={connection.y2} />
+              ))}
+            </g>
+          </svg>
+          <div className="graph-cloud">{children}</div>
+          <div className="graph-nodes graph-nodes--categories" data-state={categoryNodesState} aria-hidden={categoryNodesState !== "active"} aria-label="Categorias salvas">
+            {categoryLayout.nodes.map(({ category, left, top }, index) => (
+              <button
+                className="category-node"
+                key={category.id}
+                type="button"
+                style={{ left: `${left}%`, top: `${top}%`, "--graph-delay": `${Math.min(index, 7) * 18}ms`, ...getCategoryColorStyle(category.color) } as CSSProperties}
+                aria-label={`Categoria ${category.name}, ${formatItemCount(category.itemCount)}`}
+                onClick={() => onCategorySelect(category.id)}
+              >
+                <span className="category-node-orbit" aria-hidden="true">
+                  {category.recentItems.map((preview, previewIndex) => (
+                    <span className={`category-node-preview category-node-preview--${previewIndex}`} key={preview.id}>
+                      <FallbackImage src={preview.imageUrl || preview.faviconUrl} alt="" className="category-node-preview-image" loading="lazy" />
+                    </span>
+                  ))}
+                </span>
+                <span className="category-node-content">
+                  <span className="category-node-dot" aria-hidden="true" />
+                  <span className="category-node-copy">
+                    <strong>{category.name}</strong>
+                    <small>{formatItemCount(category.itemCount)}</small>
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+          <div key={`items-${selectedCategory?.id ?? "overview"}`} className={`graph-nodes graph-nodes--items${items.length > 20 ? " graph-nodes--dense" : ""}`} data-state={itemNodesState} aria-hidden={itemNodesState === "hidden" || itemNodesState === "exiting"} aria-label={selectedCategory ? `Itens de ${selectedCategory.name}` : "Itens da categoria"}>
+            {itemLayout.nodes.map(({ item, left, top }, index) => (
+              <button
+                className={`item-node${selectedItemId === item.id ? " item-node--selected" : ""}`}
+                key={item.id}
+                type="button"
+                style={{ left: `${left}%`, top: `${top}%`, zIndex: items.length - index, "--graph-delay": `${Math.min(index, 7) * 28}ms`, "--graph-card-alpha": items.length > 20 ? (index % 4 === 1 ? ".72" : index % 4 === 2 ? ".84" : ".9") : ".94" } as CSSProperties}
+                aria-label={`${item.name}, ${item.category ? `categoria ${item.category.name}` : "categoria Vazio"}`}
+                aria-pressed={selectedItemId === item.id}
+                onClick={() => { setSelectedItemId(item.id); setDetailItem(item); }}
+              >
+                <FallbackImage src={item.imageUrl} alt="" className="item-node-image" loading="lazy" />
+                <span className="item-node-copy">
+                  <strong>{item.name}</strong>
+                  <small className="item-node-category" style={getCategoryColorStyle(item.category?.color ?? EMPTY_CATEGORY_COLOR)}><span aria-hidden="true" /><span>{item.category?.name ?? "Vazio"}</span></small>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {isLoading && <p className="graph-status" role="status">Abrindo sua nuvem...</p>}
+      {isLoading && <p className="graph-status" role="status">{isCategoryView ? `Abrindo ${selectedCategory.name}...` : "Abrindo suas categorias..."}</p>}
       {!isLoading && error && (
         <div className="graph-status graph-status--error" role="alert">
           <span>{error}</span>
           <button type="button" onClick={onRetry}>Tentar novamente</button>
         </div>
       )}
-      {!isLoading && !error && items.length === 0 && (
+      {!isLoading && !error && !isCategoryView && categories.length === 0 && (
         <div className="graph-empty-state">
           <p>Sua nuvem começa com uma referência.</p>
           <button type="button" onClick={onAddLink}>Adicionar primeiro link</button>
         </div>
       )}
+      {!isLoading && !error && isCategoryView && items.length === 0 && (
+        <div className="graph-empty-state">
+          <p>Esta categoria ainda não tem referências.</p>
+          <button type="button" onClick={onCategoryBack}>Voltar para categorias</button>
+        </div>
+      )}
       {detailItem && <ItemDetail item={detailItem} open={selectedItemId === detailItem.id} onClose={() => setSelectedItemId(null)} onExited={() => setDetailItem(null)} />}
     </div>
   );
+}
+
+function getDefaultGraphZoom(): number {
+  return DEFAULT_GRAPH_ZOOM;
+}
+
+function formatItemCount(count: number): string {
+  return `${count} ${count === 1 ? "item" : "itens"}`;
 }
 
 const ITEM_DETAIL_EXIT_DURATION = 200;
@@ -217,12 +369,12 @@ function ItemDetail({ item, open, onClose, onExited }: { item: CloudyItem; open:
   );
 }
 
-export function FallbackImage({ src, alt, className }: { src: string | null; alt: string; className: string }) {
+export function FallbackImage({ src, alt, className, loading = "lazy" }: { src: string | null; alt: string; className: string; loading?: "lazy" | "eager" }) {
   const [imageSrc, setImageSrc] = useState(src || FALLBACK_IMAGE);
 
   useEffect(() => {
     setImageSrc(src || FALLBACK_IMAGE);
   }, [src]);
 
-  return <img className={className} src={imageSrc} alt={alt} onError={() => setImageSrc(FALLBACK_IMAGE)} />;
+  return <img className={className} src={imageSrc} alt={alt} loading={loading} decoding="async" onError={() => setImageSrc(FALLBACK_IMAGE)} />;
 }
