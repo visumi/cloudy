@@ -55,4 +55,23 @@ describe("TagManagerDialog", () => {
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("fecha ao arrastar a barra do drawer", () => {
+    const onClose = vi.fn();
+    render(<TagManagerDialog open categories={[]} onClose={onClose} onCategoriesChange={vi.fn()} />);
+    const handle = document.querySelector(".mobile-drawer-handle")!;
+
+    const createPointerEvent = (type: string, clientY: number) => {
+      const event = new MouseEvent(type, { bubbles: true, clientX: 100, clientY });
+      Object.defineProperty(event, "pointerId", { value: 1 });
+      Object.defineProperty(event, "pointerType", { value: "touch" });
+      return event;
+    };
+    fireEvent(handle, createPointerEvent("pointerdown", 100));
+    fireEvent(handle, createPointerEvent("pointermove", 220));
+    fireEvent(handle, createPointerEvent("pointerup", 220));
+
+    expect(onClose).toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toHaveStyle({ transform: "translateY(120px)" });
+  });
 });

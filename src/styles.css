@@ -141,7 +141,7 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 .tag-manager-list { display: grid; min-height: 0; gap: 6px; overflow-y: auto; margin-top: 10px; overscroll-behavior: contain; }
 .tag-manager-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; min-height: 48px; align-items: center; gap: 9px; border-radius: 13px; padding: 6px 7px 6px 10px; background: white; box-shadow: inset 0 0 0 1px oklch(0.82 0.055 235 / .42); }
 .tag-manager-row-tag { display: inline-flex; max-width: 100%; min-width: 0; align-items: center; gap: 6px; overflow: hidden; width: fit-content; border-radius: 999px; padding: 7px 9px; color: var(--category-ink); background: var(--category-color); font-size: .72rem; font-weight: 750; text-overflow: clip; white-space: nowrap; }
-.tag-manager-row-count { color: #64748b; font-size: .68rem; font-weight: 650; white-space: nowrap; }
+.tag-manager-row-count { flex: 0 0 auto; color: #64748b; font-size: .68rem; font-weight: 650; white-space: nowrap; }
 .tag-manager-row-actions { display: flex; align-items: center; gap: 2px; }
 .tag-manager-icon-button { display: grid; width: 34px; height: 34px; place-items: center; border: 0; border-radius: 9px; color: var(--sky-700); background: transparent; cursor: pointer; transition: color 160ms ease, background-color 160ms ease; }
 .tag-manager-icon-button:hover { color: var(--sky-900); background: #e0f2fe; }
@@ -373,7 +373,7 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
   .mobile-drawer-handle::before { content: ""; display: block; width: 48px; height: 5px; border-radius: 999px; background: #94a3b8; }
   .mobile-drawer-handle:active { cursor: grabbing; }
   .item-detail-panel { touch-action: none; }
-  .item-detail-panel[data-dragging="true"], .item-dialog[data-dragging="true"] { animation: none; transition: none; }
+  .item-detail-panel[data-dragging="true"], .item-dialog[data-dragging="true"], .tag-manager-panel[data-dragging="true"] { animation: none; transition: none; }
   .tag-manager-backdrop { align-items: end; padding: 0; }
   .tag-manager-panel { width: 100%; max-height: min(92dvh, 720px); border-right: 0; border-bottom: 0; border-left: 0; border-radius: 22px 22px 0 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; padding: 12px 20px calc(20px + env(safe-area-inset-bottom)); animation: item-drawer-arrival 260ms cubic-bezier(0.16, 1, 0.3, 1) both; }
   .tag-manager-panel[data-closing="true"] { animation: item-drawer-departure 200ms cubic-bezier(0.7, 0, 0.84, 0) both; }
@@ -386,9 +386,6 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
   .tag-manager-preview-chip { max-width: 96px; padding: 7px 8px; font-size: .64rem; }
   .tag-manager-heading h2 { font-size: 1.35rem; }
   .tag-manager-heading p { font-size: .78rem; }
-  .tag-manager-row { grid-template-columns: minmax(0, 1fr) auto; }
-  .tag-manager-row-count { grid-column: 1; grid-row: 2; margin-top: -7px; }
-  .tag-manager-row-actions { grid-column: 2; grid-row: 1 / span 2; }
 }
 @media (max-width: 639px) { .graph-category-toolbar { left: 12px; right: 12px; } .graph-category-heading strong { font-size: .86rem; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 1ms !important; transition-duration: 1ms !important; } .item-node:hover, .item-node:focus-visible, .category-node:hover, .category-node:focus-visible { transform: translate(-50%, -50%); } .item-node:hover .item-node-image, .item-node:focus-visible .item-node-image, .item-node:hover .item-node-copy, .item-node:focus-visible .item-node-copy { transform: none; } .category-node:hover .category-node-preview, .category-node:focus-visible .category-node-preview { filter: saturate(.86); transition-delay: 0ms !important; } .category-node:hover .category-node-preview--0, .category-node:focus-visible .category-node-preview--0 { transform: rotate(-8deg); } .category-node:hover .category-node-preview--1, .category-node:focus-visible .category-node-preview--1 { transform: rotate(7deg); } .category-node:hover .category-node-preview--2, .category-node:focus-visible .category-node-preview--2 { transform: rotate(-5deg); } .category-node:hover .category-node-preview--3, .category-node:focus-visible .category-node-preview--3 { transform: rotate(6deg); } .category-node:hover .category-node-preview--4, .category-node:focus-visible .category-node-preview--4 { transform: rotate(-4deg); } }
