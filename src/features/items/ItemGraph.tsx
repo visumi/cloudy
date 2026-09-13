@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type AnimationEvent, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Blocks, Check, Copy, Globe, X } from "lucide-react";
+import { ArrowLeft, Blocks, Check, Copy, Globe, NotepadText, X } from "lucide-react";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
 import { INTEGRATIONS_CATEGORY_ID, type CategorySummary, type CloudyItem } from "../../types/api";
 import { buildCategoryGraphLayout, buildCategoryItemGraphLayout } from "./item-graph";
@@ -313,7 +313,12 @@ export function ItemDetail({ item, open, onClose, onExited }: { item: CloudyItem
           </div>
           <h2 id="item-detail-title">{item.name}</h2>
           <p className="item-detail-saved-at">Salvo em: {formatSavedDate(item.createdAt)}</p>
-          {item.observation && <p>{item.observation}</p>}
+          {item.observation && (
+            <div className="item-detail-observation">
+              <NotepadText aria-hidden="true" strokeWidth={2} />
+              <p className="item-detail-observation-text">{item.observation}</p>
+            </div>
+          )}
           {item.url && (
             <div className="item-detail-actions">
               <a href={item.url} target="_blank" rel="noreferrer" title="Acessar">

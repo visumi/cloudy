@@ -45,7 +45,7 @@ describe("item input", () => {
     expect(() => parseCreateItemInput({ name: "", url: "https://example.com", categoryName: "Ideias" })).toThrowError("invalid_item_name");
     expect(() => parseCreateItemInput({ name: "a".repeat(25), url: "https://example.com", categoryName: "Ideias" })).toThrowError("invalid_item_name");
     expect(() => parseCreateItemInput({ name: "Referência", url: "https://example.com", categoryName: "a".repeat(13) })).toThrowError("invalid_category_name");
-    expect(() => parseCreateItemInput({ name: "Referência", url: "https://example.com", categoryName: "Ideias", observation: "a".repeat(2001) })).toThrowError("invalid_item_observation");
+    expect(() => parseCreateItemInput({ name: "Referência", url: "https://example.com", categoryName: "Ideias", observation: "a".repeat(121) })).toThrowError("invalid_item_observation");
     expect(() => parseCreateItemInput({ name: "Referência", url: `https://example.com/${"a".repeat(2048)}`, categoryName: "Ideias" })).toThrowError("invalid_url_length");
   });
 });

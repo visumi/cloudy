@@ -1,5 +1,4 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search as SearchIcon } from "lucide-react";
 import { apiRequest } from "../../lib/api";
 import { useAuth } from "../../hooks/use-auth";
 import { CloudActionCloud } from "./CloudActionCloud";
@@ -194,11 +193,6 @@ export function CloudyShell() {
   return (
     <main className="app-page" inert={isModalOpen || undefined}>
       <section className="workspace" aria-label="Espaço do Cloudy">
-        <button className={`global-search-trigger${isActionCloudSuppressed ? " global-search-trigger--hidden" : ""}`} type="button" onClick={openSearch} aria-keyshortcuts="Control+K" aria-label="Abrir busca global" aria-hidden={isActionCloudSuppressed || undefined} title="Abrir busca global (Ctrl+K)">
-          <SearchIcon aria-hidden="true" />
-          <span>Pesquisar</span>
-          <kbd><span>Ctrl</span><span>K</span></kbd>
-        </button>
         <ItemGraph
           categories={categories}
           selectedCategory={selectedCategory}
@@ -217,7 +211,7 @@ export function CloudyShell() {
         </ItemGraph>
       </section>
       <aside className={`action-cloud-dock${isActionCloudSuppressed ? " action-cloud-dock--hidden" : ""}`} aria-label="Ações do Cloudy" aria-hidden={isActionCloudSuppressed}>
-        <CloudActionCloud email={email} name={profile?.name} onMenuOpenChange={setIsMenuOpen} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} onAddLink={() => setIsItemDialogOpen(true)} onTagsOpen={() => setIsTagManagerOpen(true)} onIntegrationsOpen={() => setIsIntegrationDialogOpen(true)} />
+        <CloudActionCloud email={email} name={profile?.name} onMenuOpenChange={setIsMenuOpen} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} onAddLink={() => setIsItemDialogOpen(true)} onSearch={openSearch} onTagsOpen={() => setIsTagManagerOpen(true)} onIntegrationsOpen={() => setIsIntegrationDialogOpen(true)} />
       </aside>
       {savedMessage && <p className="workspace-toast" role="status">{savedMessage}</p>}
       <ItemDialog open={isItemDialogOpen} categoryOptions={managedCategories} onClose={() => setIsItemDialogOpen(false)} onCreated={handleItemCreated} onClosingChange={setIsItemDialogClosing} />

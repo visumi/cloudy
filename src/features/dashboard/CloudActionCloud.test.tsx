@@ -27,6 +27,17 @@ describe("CloudActionCloud", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
+  it("mantém a busca no mesmo bloco de ações", () => {
+    const onSearch = vi.fn();
+    const { container } = render(<CloudActionCloud onSearch={onSearch} />);
+
+    const searchButton = screen.getByRole("button", { name: "Abrir busca global" });
+    expect(container.querySelector(".action-cloud")).toContainElement(searchButton);
+    fireEvent.click(searchButton);
+
+    expect(onSearch).toHaveBeenCalledOnce();
+  });
+
   it("mantém Integrações no menu para configurar o token", () => {
     const onIntegrationsOpen = vi.fn();
     render(<CloudActionCloud onIntegrationsOpen={onIntegrationsOpen} />);

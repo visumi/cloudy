@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentProps } from "react";
-import { Blocks, CircleUser, Link2, LogOut, Plus, Settings, Share2, Tags, UsersRound, type LucideIcon } from "lucide-react";
+import { Blocks, CircleUser, Link2, LogOut, Plus, Search, Settings, Share2, Tags, UsersRound, type LucideIcon } from "lucide-react";
 import packageJson from "../../../package.json";
 import { Badge } from "../../components/ui/badge";
 import { DropdownMenu, DropdownMenuItem } from "../../components/ui/dropdown-menu";
@@ -9,6 +9,7 @@ interface CloudActionCloudProps {
   email?: string | null;
   name?: string | null;
   onAddLink?: () => void;
+  onSearch?: () => void;
   onTagsOpen?: () => void;
   onIntegrationsOpen?: () => void;
   onSignOut?: () => Promise<void>;
@@ -38,7 +39,7 @@ const cloudMenus: Record<CloudMenu, { items: CloudMenuItem[]; title: string }> =
   }
 };
 
-export function CloudActionCloud({ email, name, onAddLink, onTagsOpen, onIntegrationsOpen, onSignOut, onMenuOpenChange, photoURL, disabled = false }: CloudActionCloudProps) {
+export function CloudActionCloud({ email, name, onAddLink, onSearch, onTagsOpen, onIntegrationsOpen, onSignOut, onMenuOpenChange, photoURL, disabled = false }: CloudActionCloudProps) {
   const [openMenu, setOpenMenu] = useState<CloudMenu | null>(null);
   const [closingMenu, setClosingMenu] = useState<CloudMenu | null>(null);
   const [profileImageFailed, setProfileImageFailed] = useState(false);
@@ -99,6 +100,13 @@ export function CloudActionCloud({ email, name, onAddLink, onTagsOpen, onIntegra
 
   return (
     <div ref={menuRef} className="action-cloud" aria-label="Ações do Cloudy">
+      <div className="cloud-action-slot cloud-action-slot--search">
+        <button className="global-search-trigger" type="button" onClick={onSearch} aria-keyshortcuts="Control+K" aria-label="Abrir busca global" title="Abrir busca global (Ctrl+K)" disabled={disabled}>
+          <Search aria-hidden="true" />
+          <span>Pesquisar</span>
+          <kbd><span>Ctrl</span><span>K</span></kbd>
+        </button>
+      </div>
       <div className="cloud-action-slot cloud-action-slot--settings">
         <IconButton
           tone="settings"

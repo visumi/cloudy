@@ -13,6 +13,18 @@ describe("CommandPalette", () => {
     const onSelect = vi.fn();
     render(<CommandPalette open items={items} isLoading={false} error={null} onClose={vi.fn()} onRetry={vi.fn()} onSelect={onSelect} />);
 
+    expect(document.querySelector(".command-palette-heading")).toHaveClass("modal-heading");
+    expect(document.querySelector(".command-palette-heading .modal-heading-icon")).toBeInTheDocument();
+    expect(document.querySelector(".command-palette .mobile-drawer-handle")).toBeInTheDocument();
+    expect(document.querySelector(".command-palette-topline")).not.toBeInTheDocument();
+    expect(document.querySelector(".command-results-label")?.textContent).toBe("Recentemente salvos");
+    expect(document.querySelector(".command-result-category")).toHaveStyle("--category-color: #38BDF8");
+    expect(document.querySelector(".command-result-note")).toBeInTheDocument();
+    expect(document.querySelectorAll(".command-result-note svg")).toHaveLength(2);
+    expect(screen.queryByText("Nota")).not.toBeInTheDocument();
+    expect(document.querySelector(".command-input-escape")).not.toBeInTheDocument();
+    expect(document.querySelector(".command-footer")).not.toBeInTheDocument();
+
     const input = screen.getByRole("combobox", { name: "Pesquisar referências" });
     fireEvent.change(input, { target: { value: "cafe" } });
     expect(screen.getByRole("option", { name: /Café em Lisboa/ })).toBeInTheDocument();
@@ -20,6 +32,20 @@ describe("CommandPalette", () => {
 
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onSelect).toHaveBeenCalledWith(items[0]);
+  });
+
+  it("lista somente os dez itens recentes e mantém o título fora da rolagem", () => {
+    const recentItems = Array.from({ length: 11 }, (_, index) => {
+      const date = `2026-09-${String(13 - index).padStart(2, "0")}T15:00:00.000Z`;
+      return { ...items[0], id: `recent-${index + 1}`, name: `Item recente ${index + 1}`, createdAt: date, updatedAt: date };
+    });
+    render(<CommandPalette open items={recentItems} isLoading={false} error={null} onClose={vi.fn()} onRetry={vi.fn()} onSelect={vi.fn()} />);
+
+    const label = document.querySelector(".command-results-label")!;
+    const list = document.querySelector(".command-results-list")!;
+    expect(screen.getAllByRole("option")).toHaveLength(10);
+    expect(screen.queryByRole("option", { name: /Item recente 11/ })).not.toBeInTheDocument();
+    expect(list).not.toContainElement(label);
   });
 
   it("mostra carregamento e permite tentar novamente em caso de erro", () => {

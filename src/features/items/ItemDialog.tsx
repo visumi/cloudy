@@ -18,7 +18,7 @@ interface ItemDialogProps {
 const ITEM_DIALOG_EXIT_DURATION = 220;
 const MAX_ITEM_NAME_LENGTH = 24;
 const MAX_ITEM_URL_LENGTH = 2048;
-const MAX_ITEM_OBSERVATION_LENGTH = 2000;
+const MAX_ITEM_OBSERVATION_LENGTH = 120;
 
 export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosingChange }: ItemDialogProps) {
   const [url, setUrl] = useState("");
@@ -320,7 +320,7 @@ function formatItemError(error: unknown, fallback: string): string {
     invalid_url_length: "O link deve ter até 2.048 caracteres.",
     invalid_item_name: "Escolha um nome de até 24 caracteres.",
     invalid_category_name: "Informe uma categoria de até 12 caracteres.",
-    invalid_item_observation: "A observação deve ter até 2.000 caracteres.",
+    invalid_item_observation: "A observação deve ter até 120 caracteres.",
     category_limit_reached: "Você pode criar até 15 categorias.",
     category_item_limit_reached: "Essa categoria já tem 70 itens."
   };

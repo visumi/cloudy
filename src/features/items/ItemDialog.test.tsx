@@ -52,6 +52,7 @@ describe("ItemDialog", () => {
     expect(screen.getByRole("button", { name: "Salvar" })).toBeInTheDocument();
     expect(screen.getByText("Inspirações", { selector: ".item-live-preview-category > span:last-child" })).toBeInTheDocument();
     expect(screen.getByLabelText("Observação (opcional)")).toHaveValue("Uma nota curta");
+    expect(screen.getByLabelText("Observação (opcional)")).toHaveAttribute("maxLength", "120");
   });
 
   it("permite salvar um item sem tag", async () => {

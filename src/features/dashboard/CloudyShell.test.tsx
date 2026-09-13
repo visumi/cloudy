@@ -46,8 +46,8 @@ describe("CloudyShell", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(dock).toHaveClass("action-cloud-dock--hidden");
     expect(dock).toHaveAttribute("aria-hidden", "true");
-    expect(searchTrigger).toHaveClass("global-search-trigger--hidden");
-    expect(searchTrigger).toHaveAttribute("aria-hidden", "true");
+    expect(dock).toContainElement(searchTrigger);
+    expect(searchTrigger).toBeDisabled();
     expect(container.querySelector("main")).toHaveAttribute("inert");
 
     fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
@@ -55,8 +55,7 @@ describe("CloudyShell", () => {
     await waitFor(() => {
       expect(dock).not.toHaveClass("action-cloud-dock--hidden");
       expect(dock).toHaveAttribute("aria-hidden", "false");
-      expect(searchTrigger).not.toHaveClass("global-search-trigger--hidden");
-      expect(searchTrigger).not.toHaveAttribute("aria-hidden");
+      expect(searchTrigger).not.toBeDisabled();
       expect(container.querySelector("main")).not.toHaveAttribute("inert");
     });
   });

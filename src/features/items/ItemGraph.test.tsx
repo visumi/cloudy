@@ -84,6 +84,7 @@ describe("ItemGraph", () => {
     await user.click(screen.getByRole("button", { name: "Página de inspiração, categoria Ideias" }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Salvo em: 10/09/2026")).toBeInTheDocument();
+    expect(screen.getByText("Uma referência para revisar depois.", { selector: ".item-detail-observation-text" })).toBeInTheDocument();
 
     const copyButton = screen.getByRole("button", { name: "Copiar link" });
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn().mockResolvedValue(undefined) } });
