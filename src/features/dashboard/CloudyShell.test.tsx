@@ -36,8 +36,8 @@ describe("CloudyShell", () => {
   it("oculta o dock enquanto o drawer de adicionar link está aberto", async () => {
     mockedApiRequest.mockResolvedValueOnce({ categories: [] });
     const { container } = render(<CloudyShell />);
-    const dock = container.querySelector(".action-cloud-dock")!;
-    const searchTrigger = container.querySelector(".global-search-trigger")!;
+    const dock = container.querySelector<HTMLElement>(".action-cloud-dock")!;
+    const searchTrigger = container.querySelector<HTMLElement>(".global-search-trigger")!;
 
     await waitFor(() => expect(mockedApiRequest).toHaveBeenCalledWith("/categories"));
     expect(mockedApiRequest).not.toHaveBeenCalledWith("/items");

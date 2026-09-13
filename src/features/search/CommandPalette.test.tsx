@@ -41,8 +41,8 @@ describe("CommandPalette", () => {
     });
     render(<CommandPalette open items={recentItems} isLoading={false} error={null} onClose={vi.fn()} onRetry={vi.fn()} onSelect={vi.fn()} />);
 
-    const label = document.querySelector(".command-results-label")!;
-    const list = document.querySelector(".command-results-list")!;
+    const label = document.querySelector<HTMLElement>(".command-results-label")!;
+    const list = document.querySelector<HTMLElement>(".command-results-list")!;
     expect(screen.getAllByRole("option")).toHaveLength(10);
     expect(screen.queryByRole("option", { name: /Item recente 11/ })).not.toBeInTheDocument();
     expect(list).not.toContainElement(label);
