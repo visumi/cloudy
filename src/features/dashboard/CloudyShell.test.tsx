@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiRequest } from "../../lib/api";
 import { CloudyShell } from "./CloudyShell";
 
@@ -14,6 +14,7 @@ vi.mock("../../hooks/use-auth", () => ({
 }));
 vi.mock("./CloudMascot", () => ({ CloudMascot: () => <div aria-hidden="true" /> }));
 vi.mock("../items/ItemGraph", () => ({
+  FallbackImage: ({ alt, className }: { alt: string; className: string }) => <img alt={alt} className={className} />,
   ItemGraph: ({ children, categories, onCategorySelect, onDetailOpenChange }: { children: ReactNode; categories?: Array<{ id: string; name: string }>; onCategorySelect?: (id: string) => void; onDetailOpenChange?: (open: boolean) => void }) => (
     <div>
       {children}
@@ -29,11 +30,14 @@ vi.mock("../items/ItemDialog", () => ({
 
 const mockedApiRequest = vi.mocked(apiRequest);
 
+beforeEach(() => mockedApiRequest.mockReset());
+
 describe("CloudyShell", () => {
   it("oculta o dock enquanto o drawer de adicionar link está aberto", async () => {
     mockedApiRequest.mockResolvedValueOnce({ categories: [] });
     const { container } = render(<CloudyShell />);
     const dock = container.querySelector(".action-cloud-dock")!;
+    const searchTrigger = container.querySelector(".global-search-trigger")!;
 
     await waitFor(() => expect(mockedApiRequest).toHaveBeenCalledWith("/categories"));
     expect(mockedApiRequest).not.toHaveBeenCalledWith("/items");
@@ -42,6 +46,8 @@ describe("CloudyShell", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(dock).toHaveClass("action-cloud-dock--hidden");
     expect(dock).toHaveAttribute("aria-hidden", "true");
+    expect(searchTrigger).toHaveClass("global-search-trigger--hidden");
+    expect(searchTrigger).toHaveAttribute("aria-hidden", "true");
     expect(container.querySelector("main")).toHaveAttribute("inert");
 
     fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
@@ -49,6 +55,8 @@ describe("CloudyShell", () => {
     await waitFor(() => {
       expect(dock).not.toHaveClass("action-cloud-dock--hidden");
       expect(dock).toHaveAttribute("aria-hidden", "false");
+      expect(searchTrigger).not.toHaveClass("global-search-trigger--hidden");
+      expect(searchTrigger).not.toHaveAttribute("aria-hidden");
       expect(container.querySelector("main")).not.toHaveAttribute("inert");
     });
   });
@@ -62,6 +70,21 @@ describe("CloudyShell", () => {
     expect(mockedApiRequest).not.toHaveBeenCalledWith("/items");
     fireEvent.click(screen.getByRole("button", { name: "Abrir categoria Ideias" }));
     await waitFor(() => expect(mockedApiRequest).toHaveBeenCalledWith("/categories/category-1/items"));
+  });
+
+  it("abre a busca global com Ctrl+K e carrega itens somente na primeira abertura", async () => {
+    mockedApiRequest.mockResolvedValueOnce({ categories: [] });
+    mockedApiRequest.mockResolvedValueOnce({ items: [{ id: "item-1", name: "Casa", createdAt: "2026-09-13T15:00:00.000Z" }] });
+    render(<CloudyShell />);
+
+    await waitFor(() => expect(mockedApiRequest).toHaveBeenCalledWith("/categories"));
+    expect(mockedApiRequest).not.toHaveBeenCalledWith("/items");
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Encontrar na nuvem" })).toBeInTheDocument());
+    await waitFor(() => expect(mockedApiRequest).toHaveBeenCalledWith("/items"));
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+    expect(mockedApiRequest).toHaveBeenCalledTimes(2);
   });
 
   it("oculta o dock enquanto o detalhe de um item está aberto", async () => {

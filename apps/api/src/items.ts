@@ -90,7 +90,7 @@ export async function listCategories(db: Client, userId: string): Promise<Catego
   });
 
   const untaggedCountResult = await db.execute({
-    sql: "SELECT COUNT(*) AS item_count FROM items WHERE user_id = ? AND category_id IS NULL",
+    sql: "SELECT COUNT(*) AS item_count FROM items WHERE user_id = ? AND category_id IS NULL AND system_category IS NULL",
     args: [userId]
   });
   const untaggedCount = readOptionalDbCount(untaggedCountResult.rows[0], "item_count");

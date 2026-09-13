@@ -108,6 +108,7 @@ describe("category management", () => {
       expect.objectContaining({ id: UNTAGGED_CATEGORY_ID, name: "Vazio", itemCount: 1, isVirtual: true, recentItems: [expect.objectContaining({ id: "empty-1" })] }),
       expect.objectContaining({ id: INTEGRATIONS_CATEGORY_ID, name: "Integrações", itemCount: 1, isSystem: true })
     ]);
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ sql: expect.stringContaining("category_id IS NULL AND system_category IS NULL") }));
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ sql: expect.stringContaining("ROW_NUMBER() OVER") }));
   });
 

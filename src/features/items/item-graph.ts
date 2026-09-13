@@ -203,6 +203,7 @@ function createCircularItemPositions(itemCount: number): Array<{ left: number; t
 function createCircularRingCounts(itemCount: number): number[] {
   if (itemCount === 1) return [1];
   if (itemCount <= 4) return [1, itemCount - 1];
+  if (itemCount === 5) return [1, 4];
   if (itemCount <= 8) return [Math.ceil(itemCount * .4), itemCount - Math.ceil(itemCount * .4)];
   if (itemCount <= 12) return [4, itemCount - 4];
   if (itemCount <= 28) return [Math.ceil(itemCount * .4), itemCount - Math.ceil(itemCount * .4)];

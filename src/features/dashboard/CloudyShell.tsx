@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Search as SearchIcon } from "lucide-react";
 import { apiRequest } from "../../lib/api";
 import { useAuth } from "../../hooks/use-auth";
 import { CloudActionCloud } from "./CloudActionCloud";
@@ -6,6 +7,8 @@ import { ItemDialog } from "../items/ItemDialog";
 import { ItemGraph } from "../items/ItemGraph";
 import { TagManagerDialog } from "../settings/TagManagerDialog";
 import { IntegrationDialog } from "../settings/IntegrationDialog";
+import { CommandPalette } from "../search/CommandPalette";
+import { ItemDetail } from "../items/ItemGraph";
 import { EMPTY_CATEGORY_COLOR } from "../items/category-colors";
 import type { CategoriesResponse, CategoryRecentItem, CategorySummary, CloudyItem, ItemsResponse } from "../../types/api";
 
@@ -54,6 +57,11 @@ export function CloudyShell() {
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [isIntegrationDialogOpen, setIsIntegrationDialogOpen] = useState(false);
   const [isIntegrationDialogClosing, setIsIntegrationDialogClosing] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchItems, setSearchItems] = useState<CloudyItem[]>([]);
+  const [searchItemsLoading, setSearchItemsLoading] = useState(false);
+  const [searchItemsError, setSearchItemsError] = useState<string | null>(null);
+  const [searchDetailItem, setSearchDetailItem] = useState<CloudyItem | null>(null);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
@@ -63,14 +71,54 @@ export function CloudyShell() {
   const [categoryItemsError, setCategoryItemsError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const categoryRequestId = useRef(0);
+  const searchItemsLoadedRef = useRef(false);
+  const searchItemsRequestRef = useRef(false);
   const isActionCloudHidden = useActionCloudIdle(isMenuOpen);
-  const isActionCloudSuppressed = isActionCloudHidden || isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing;
-  const isModalOpen = isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing;
+  const isActionCloudSuppressed = isActionCloudHidden || isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isSearchOpen || searchDetailItem !== null;
+  const isModalOpen = isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isSearchOpen || searchDetailItem !== null;
   const photoURL = user?.photoURL ?? profile?.picture;
   const email = user?.email ?? profile?.email;
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId) ?? null;
   const managedCategories = useMemo(() => categories.filter((category) => !category.isVirtual && !category.isSystem), [categories]);
   const visibleItems = selectedCategoryId ? categoryItems[selectedCategoryId] ?? [] : [];
+
+  const loadSearchItems = useCallback(async () => {
+    if (searchItemsLoadedRef.current || searchItemsRequestRef.current) return;
+    searchItemsRequestRef.current = true;
+    setSearchItemsLoading(true);
+    setSearchItemsError(null);
+    try {
+      const response = await apiRequest<ItemsResponse>("/items");
+      setSearchItems(response.items);
+      searchItemsLoadedRef.current = true;
+    } catch {
+      setSearchItemsError("Não conseguimos abrir sua busca agora.");
+    } finally {
+      searchItemsRequestRef.current = false;
+      setSearchItemsLoading(false);
+    }
+  }, []);
+
+  const openSearch = useCallback(() => {
+    if (isModalOpen && !isSearchOpen) return;
+    setIsSearchOpen(true);
+    void loadSearchItems();
+  }, [isModalOpen, isSearchOpen, loadSearchItems]);
+
+  const closeSearch = useCallback(() => setIsSearchOpen(false), []);
+
+  useEffect(() => {
+    const handleGlobalShortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        openSearch();
+      } else if (event.key === "Escape" && isSearchOpen) {
+        closeSearch();
+      }
+    };
+    document.addEventListener("keydown", handleGlobalShortcut);
+    return () => document.removeEventListener("keydown", handleGlobalShortcut);
+  }, [closeSearch, isSearchOpen, openSearch]);
 
   const loadCategories = useCallback(async () => {
     setCategoriesLoading(true);
@@ -141,10 +189,16 @@ export function CloudyShell() {
   }, [categories, handleCategoryBack, loadCategories, selectedCategoryId]);
 
   const retry = selectedCategoryId ? () => void loadCategoryItems(selectedCategoryId) : () => void loadCategories();
+  const retrySearch = () => { searchItemsLoadedRef.current = false; void loadSearchItems(); };
 
   return (
     <main className="app-page" inert={isModalOpen || undefined}>
       <section className="workspace" aria-label="Espaço do Cloudy">
+        <button className={`global-search-trigger${isActionCloudSuppressed ? " global-search-trigger--hidden" : ""}`} type="button" onClick={openSearch} aria-keyshortcuts="Control+K" aria-label="Abrir busca global" aria-hidden={isActionCloudSuppressed || undefined} title="Abrir busca global (Ctrl+K)">
+          <SearchIcon aria-hidden="true" />
+          <span>Pesquisar</span>
+          <kbd><span>Ctrl</span><span>K</span></kbd>
+        </button>
         <ItemGraph
           categories={categories}
           selectedCategory={selectedCategory}
@@ -169,6 +223,8 @@ export function CloudyShell() {
       <ItemDialog open={isItemDialogOpen} categoryOptions={managedCategories} onClose={() => setIsItemDialogOpen(false)} onCreated={handleItemCreated} onClosingChange={setIsItemDialogClosing} />
       <TagManagerDialog open={isTagManagerOpen} categories={managedCategories} onClose={() => setIsTagManagerOpen(false)} onCategoriesChange={handleCategoriesChange} />
       <IntegrationDialog open={isIntegrationDialogOpen} onClose={() => setIsIntegrationDialogOpen(false)} onClosingChange={setIsIntegrationDialogClosing} />
+      <CommandPalette open={isSearchOpen} items={searchItems} isLoading={searchItemsLoading} error={searchItemsError} onClose={closeSearch} onRetry={retrySearch} onSelect={(item) => { closeSearch(); setSearchDetailItem(item); }} />
+      {searchDetailItem && <ItemDetail item={searchDetailItem} open onClose={() => setSearchDetailItem(null)} onExited={() => setSearchDetailItem(null)} />}
     </main>
   );
 }

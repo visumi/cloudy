@@ -55,6 +55,14 @@ describe("item graph layout", () => {
     expect(layout.connections.filter((connection) => connection.kind === "item")).toHaveLength(2);
   });
 
+  it("não empilha dois cards na base com 5 itens", () => {
+    const layout = buildCategoryItemGraphLayout(Array.from({ length: 5 }, (_, index) => item(`item-${index}`, "ideas", "Ideias")));
+    const bottomNodes = layout.nodes.filter((node) => node.top > 60);
+
+    expect(new Set(layout.nodes.map((node) => `${node.left}:${node.top}`)).size).toBe(5);
+    expect(new Set(bottomNodes.map((node) => node.left)).size).toBe(bottomNodes.length);
+  });
+
   it("fixa Integrações abaixo da nuvem e libera o slot para uma categoria comum", () => {
     const integration = { ...category("integrations", "Integrações"), id: INTEGRATIONS_CATEGORY_ID, isSystem: true };
     const layout = buildCategoryGraphLayout([

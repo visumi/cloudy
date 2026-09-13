@@ -227,7 +227,7 @@ function formatItemCount(count: number): string {
 
 const ITEM_DETAIL_EXIT_DURATION = 200;
 
-function ItemDetail({ item, open, onClose, onExited }: { item: CloudyItem; open: boolean; onClose: () => void; onExited: () => void }) {
+export function ItemDetail({ item, open, onClose, onExited }: { item: CloudyItem; open: boolean; onClose: () => void; onExited: () => void }) {
   const [shouldRender, setShouldRender] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
