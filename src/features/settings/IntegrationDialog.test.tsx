@@ -36,7 +36,7 @@ describe("IntegrationDialog", () => {
     mockedApiRequest.mockResolvedValueOnce({ configured: true, tokenPrefix: "cly_cap_abc", createdAt: "now", lastUsedAt: null });
     render(<IntegrationDialog open onClose={vi.fn()} />);
 
-    expect(await screen.findByText("cly_cap_abc••••")).toBeInTheDocument();
+    expect(await screen.findByText("cly_cap_abc****")).toBeInTheDocument();
     expect(screen.queryByText("Token ativo")).not.toBeInTheDocument();
     expect(screen.queryByText("cly_cap_abc", { exact: true })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Gerar novo token" })).toBeInTheDocument();

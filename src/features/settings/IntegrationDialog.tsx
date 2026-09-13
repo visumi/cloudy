@@ -235,7 +235,7 @@ export function IntegrationDialog({ open, onClose, onClosingChange }: Integratio
                   <small>Copie agora. Por segurança, ele não será mostrado novamente.</small>
                 </div>
               ) : metadata?.configured ? (
-                <p className="integration-token-meta"><code>{metadata.tokenPrefix}••••</code></p>
+                <p className="integration-token-meta"><code>{metadata.tokenPrefix}****</code></p>
               ) : <p className="integration-token-meta">Nenhum token configurado.</p>}
               <div className="integration-actions">
                 <button className="button-action integration-primary" type="button" disabled={isSaving} onClick={() => void generateToken()}>{isSaving ? <LoaderCircle aria-hidden="true" /> : metadata?.configured ? <RefreshCw aria-hidden="true" /> : <ShieldCheck aria-hidden="true" />}{metadata?.configured ? "Gerar novo token" : "Gerar token"}</button>
