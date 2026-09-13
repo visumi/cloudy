@@ -30,6 +30,8 @@ describe("ItemDialog", () => {
   it("atualiza a prévia do card conforme as informações são preenchidas", () => {
     render(<ItemDialog open categoryOptions={[{ id: "category-1", name: "Inspirações", color: "#A78BFA" }]} onClose={vi.fn()} onCreated={vi.fn()} />);
 
+    expect(screen.getByText("Nova referência")).toBeInTheDocument();
+    expect(document.querySelector(".modal-heading .modal-heading-icon")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Criar item" })).toBeInTheDocument();
     expect(screen.getByText("Preencha os dados abaixo")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Nome do item")).toBeInTheDocument();

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { apiRequest } from "../../lib/api";
 import { CloudyShell } from "./CloudyShell";
 
-vi.mock("../../lib/api", () => ({ apiRequest: vi.fn() }));
+vi.mock("../../lib/api", () => ({ apiBaseUrl: "https://cloudy-api.isumi.com.br", apiRequest: vi.fn() }));
 vi.mock("../../hooks/use-auth", () => ({
   useAuth: () => ({
     profile: { name: "Ana Souza", email: "ana@example.com", picture: null },

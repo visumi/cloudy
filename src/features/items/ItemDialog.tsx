@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type AnimationEvent, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { Copy, Globe, LoaderCircle, MoveRight, X } from "lucide-react";
+import { Copy, Globe, LoaderCircle, MoveRight, Plus, X } from "lucide-react";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
 import { ApiError, apiRequest } from "../../lib/api";
 import type { CategoryRef, CloudyItem, ItemPreview } from "../../types/api";
@@ -193,10 +193,14 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
     <div className="item-dialog-backdrop" data-closing={isClosing || undefined} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
       <section ref={dialogRef} className="item-dialog" data-closing={isClosing || undefined} data-dragging={drawerGesture.isDragging || undefined} onAnimationEnd={handleExitAnimationEnd} style={drawerGesture.panelStyle} role="dialog" aria-modal="true" aria-labelledby="item-dialog-title">
         <div className="mobile-drawer-handle" aria-hidden="true" {...drawerGesture.handleProps} />
-        <button className="item-dialog-close" type="button" aria-label="Fechar cadastro" onClick={requestClose}><X aria-hidden="true" /></button>
-        <div className="item-dialog-heading">
-          <h2 id="item-dialog-title">Criar item</h2>
-          <p>Preencha os dados abaixo</p>
+        <button className="modal-close item-dialog-close" type="button" aria-label="Fechar cadastro" onClick={requestClose}><X aria-hidden="true" /></button>
+        <div className="modal-heading item-dialog-heading">
+          <div className="modal-heading-icon item-dialog-heading-icon" aria-hidden="true"><Plus /></div>
+          <div className="modal-heading-copy">
+            <span className="item-dialog-kicker">Nova referência</span>
+            <h2 id="item-dialog-title">Criar item</h2>
+            <p>Preencha os dados abaixo</p>
+          </div>
         </div>
         <form noValidate onSubmit={submit}>
           <div className="item-live-preview" aria-label="Prévia do card">
@@ -298,7 +302,7 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
             </p>
           )}
           {error && <p className="item-dialog-error" role="alert"><span>{error}</span><span className="item-required-marker" aria-hidden="true" /></p>}
-          <button className="item-dialog-submit" type="submit" disabled={saving} aria-label={saving ? "Salvando..." : "Salvar"}>
+          <button className="button-action item-dialog-submit" type="submit" disabled={saving} aria-label={saving ? "Salvando..." : "Salvar"}>
             {saving ? <><LoaderCircle className="item-dialog-submit-loader" aria-hidden="true" /> Salvando...</> : "Salvar"}
           </button>
         </form>

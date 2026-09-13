@@ -212,6 +212,16 @@ Item reutilizável com ícone Lucide e label. Pode receber `destructive` para a�
 - **Default / Hover:** transparente em repouso; `sky-100` no hover.
 - **Destructive:** texto, ícone e foco em Red-700; hover em Red-50, sem borda vermelha.
 
+### ModalHeader e ModalLoading
+
+Todos os modais operacionais seguem a mesma leitura inicial: handle de drawer no mobile, botão de fechar no desktop e um header com contexto, título e descrição.
+
+- **Header:** usar `modal-heading` com ícone/visual de 48px, `modal-heading-copy`, `item-dialog-kicker`, `h2` e uma descrição curta. No mobile, o visual reduz para 42px e o espaçamento acompanha o drawer.
+- **Fechar:** usar `modal-close` para o X, com alvo circular de 36px, ícone de 18px, posição superior direita, foco Sky de 3px e feedback discreto de hover/pressão. No mobile, o handle do drawer é a affordance principal e o X pode ficar oculto.
+- **Exceção visual:** Tags pode manter a prévia grande da tag à esquerda, mas o bloco textual deve preservar a mesma hierarquia de kicker, título e descrição.
+- **Loading:** usar uma única superfície compacta com `role="status"`, mensagem verdadeira sobre a tarefa em andamento e um `LoaderCircle` de 16–18px. Preferir fundo branco, borda Sky de 1px e raio de 12px; não usar percentuais falsos, barras indeterminadas chamativas, pontos decorativos ou múltiplas animações.
+- **Acessibilidade:** o status deve ser anunciado por tecnologia assistiva e toda animação deve respeitar `prefers-reduced-motion`.
+
 ### ActionCloud
 
 Composição assinatura que agrupa Settings, Plus e Share2. O dock some após 4,2 segundos de inatividade e retorna com atividade do mouse, toque, rolagem, clique ou teclado. O temporizador pausa enquanto um dropdown está aberto.

@@ -201,19 +201,19 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
       {!isLoading && error && (
         <div className="graph-status graph-status--error" role="alert">
           <span>{error}</span>
-          <button type="button" onClick={onRetry}>Tentar novamente</button>
+          <button className="button-action" type="button" onClick={onRetry}>Tentar novamente</button>
         </div>
       )}
       {!isLoading && !error && !isCategoryView && categories.every((category) => category.id === INTEGRATIONS_CATEGORY_ID || category.isSystem) && (
         <div className="graph-empty-state">
           <p>Sua nuvem começa com uma referência.</p>
-          <button type="button" onClick={onAddLink}>Adicionar primeiro link</button>
+          <button className="button-action" type="button" onClick={onAddLink}>Adicionar primeiro link</button>
         </div>
       )}
       {!isLoading && !error && isCategoryView && items.length === 0 && (
         <div className="graph-empty-state">
           <p>Esta categoria ainda não tem referências</p>
-          <button type="button" onClick={onCategoryBack}>Voltar para categorias</button>
+          <button className="button-action" type="button" onClick={onCategoryBack}>Voltar para categorias</button>
         </div>
       )}
       {detailItem && <ItemDetail item={detailItem} open={selectedItemId === detailItem.id} onClose={() => setSelectedItemId(null)} onExited={() => setDetailItem(null)} />}
@@ -304,7 +304,7 @@ function ItemDetail({ item, open, onClose, onExited }: { item: CloudyItem; open:
     <div className="item-detail-backdrop" data-closing={isClosing || undefined} role="presentation" onClick={requestClose}>
       <section className="item-detail-panel" data-closing={isClosing || undefined} data-dragging={drawerGesture.isDragging || undefined} style={{ ...drawerGesture.panelStyle, ...getCategoryColorStyle(category?.color ?? EMPTY_CATEGORY_COLOR) }} onAnimationEnd={handleExitAnimationEnd} role="dialog" aria-modal="true" aria-labelledby="item-detail-title" onClick={(event) => event.stopPropagation()} {...drawerGesture.panelProps}>
         <div className="mobile-drawer-handle" aria-hidden="true" />
-        <button className="item-detail-close" type="button" aria-label="Fechar detalhes" onClick={requestClose}><X aria-hidden="true" /></button>
+      <button className="modal-close item-detail-close" type="button" aria-label="Fechar detalhes" onClick={requestClose}><X aria-hidden="true" /></button>
         <FallbackImage src={item.imageUrl} alt="" className="item-detail-image" />
         <div className="item-detail-content">
           <div className="item-detail-source">

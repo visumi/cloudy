@@ -206,7 +206,7 @@ export function TagManagerDialog({ open, categories, onClose, onCategoriesChange
         {...drawerGesture.panelProps}
       >
         <div className="mobile-drawer-handle" aria-hidden="true" {...drawerGesture.handleProps} />
-        <button className="tag-manager-close" type="button" aria-label="Fechar tags" onClick={requestClose}><X aria-hidden="true" /></button>
+        <button className="modal-close tag-manager-close" type="button" aria-label="Fechar tags" onClick={requestClose}><X aria-hidden="true" /></button>
 
         <div className="tag-manager-hero">
           <div className="tag-manager-preview" aria-label={`Prévia da tag ${previewName}`}>
@@ -218,7 +218,7 @@ export function TagManagerDialog({ open, categories, onClose, onCategoriesChange
               <span>{previewName}</span>
             </span>
           </div>
-          <div className="tag-manager-heading">
+          <div className="tag-manager-heading modal-heading-copy">
             <span className="item-dialog-kicker">Organize sua nuvem</span>
             <h2 id="tag-manager-title">Tags</h2>
             <p>Dê um nome e uma cor para encontrar tudo de relance.</p>
@@ -256,7 +256,7 @@ export function TagManagerDialog({ open, categories, onClose, onCategoriesChange
 
           {error && <p className="tag-manager-message tag-manager-message--error" role="alert">{error}<span className="item-required-marker" aria-hidden="true" /></p>}
           {savedMessage && <p className="tag-manager-message tag-manager-message--success" role="status"><Check aria-hidden="true" />{savedMessage}</p>}
-          <button className="tag-manager-submit" type="submit" disabled={isSaving}>
+          <button className="button-action tag-manager-submit" type="submit" disabled={isSaving}>
             {isSaving ? <LoaderCircle aria-hidden="true" /> : editingId ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}
             {isSaving ? "Salvando" : editingId ? "Salvar alterações" : "Criar tag"}
           </button>

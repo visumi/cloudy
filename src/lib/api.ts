@@ -1,6 +1,6 @@
 import { firebaseAuth } from "./firebase";
 
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8787").replace(/\/$/, "");
+export const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8787").replace(/\/$/, "");
 
 export class ApiError extends Error {
   constructor(readonly status: number, readonly code: string) {

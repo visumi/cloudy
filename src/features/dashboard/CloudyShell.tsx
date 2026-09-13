@@ -53,6 +53,7 @@ export function CloudyShell() {
   const [isItemDetailOpen, setIsItemDetailOpen] = useState(false);
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [isIntegrationDialogOpen, setIsIntegrationDialogOpen] = useState(false);
+  const [isIntegrationDialogClosing, setIsIntegrationDialogClosing] = useState(false);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
@@ -63,8 +64,8 @@ export function CloudyShell() {
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const categoryRequestId = useRef(0);
   const isActionCloudHidden = useActionCloudIdle(isMenuOpen);
-  const isActionCloudSuppressed = isActionCloudHidden || isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen;
-  const isModalOpen = isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen;
+  const isActionCloudSuppressed = isActionCloudHidden || isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing;
+  const isModalOpen = isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing;
   const photoURL = user?.photoURL ?? profile?.picture;
   const email = user?.email ?? profile?.email;
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId) ?? null;
@@ -167,7 +168,7 @@ export function CloudyShell() {
       {savedMessage && <p className="workspace-toast" role="status">{savedMessage}</p>}
       <ItemDialog open={isItemDialogOpen} categoryOptions={managedCategories} onClose={() => setIsItemDialogOpen(false)} onCreated={handleItemCreated} onClosingChange={setIsItemDialogClosing} />
       <TagManagerDialog open={isTagManagerOpen} categories={managedCategories} onClose={() => setIsTagManagerOpen(false)} onCategoriesChange={handleCategoriesChange} />
-      <IntegrationDialog open={isIntegrationDialogOpen} onClose={() => setIsIntegrationDialogOpen(false)} />
+      <IntegrationDialog open={isIntegrationDialogOpen} onClose={() => setIsIntegrationDialogOpen(false)} onClosingChange={setIsIntegrationDialogClosing} />
     </main>
   );
 }
