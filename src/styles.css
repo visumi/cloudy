@@ -127,16 +127,14 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 .integration-status-pill--active { color: #166534; background: #dcfce7; }
 .integration-token-meta { display: grid; min-height: 46px; place-items: center; margin: 0; border-radius: 11px; padding: 10px 12px; color: var(--sky-700); background: #f0f9ff; font-size: .78rem; text-align: center; }
 .integration-token-meta code, .integration-token-reveal code { overflow-wrap: anywhere; color: var(--sky-900); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .72rem; }
-.integration-token-reveal { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 8px; min-height: 74px; border-radius: 11px; padding: 12px 54px 12px 12px; background: #e0f2fe; }
-.integration-token-reveal code { display: block; overflow-wrap: anywhere; text-align: center; }
-.integration-token-reveal button { position: absolute; top: 10px; right: 10px; display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid #7dd3fc; border-radius: 10px; color: #0369a1; background: white; cursor: pointer; transition: var(--control-transition); }
+.integration-token-reveal { display: grid; grid-template-columns: minmax(0, 1fr) 36px; align-items: center; gap: 8px; min-height: 74px; border-radius: 11px; padding: 8px; background: #e0f2fe; }
+.integration-token-reveal code { display: block; min-width: 0; overflow-x: auto; overflow-y: hidden; overflow-wrap: normal; text-align: center; white-space: nowrap; }
+.integration-token-reveal button, .integration-endpoint button { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid #7dd3fc; border-radius: 10px; color: #0369a1; background: white; cursor: pointer; transition: var(--control-transition); }
 .integration-token-reveal button:hover, .integration-endpoint button:hover { color: var(--sky-900); border-color: var(--sky-700); background: #f0f9ff; transform: translateY(-2px); box-shadow: 0 8px 18px oklch(0.08 0.04 245 / .1); }
 .integration-token-reveal button:active, .integration-endpoint button:active { transform: translateY(1px) scale(.94); }
-.integration-token-reveal small { color: var(--sky-700); font-size: .7rem; text-align: center; }
 .integration-endpoint { display: grid; grid-template-columns: minmax(0, 1fr) 36px; align-items: center; gap: 8px; min-width: 0; border-radius: 12px; padding: 8px; background: #e0f2fe; }
 .integration-endpoint code { min-width: 0; overflow-x: auto; color: var(--sky-900); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .68rem; line-height: 1.35; white-space: nowrap; }
-.integration-endpoint button { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid #7dd3fc; border-radius: 10px; color: #0369a1; background: white; cursor: pointer; transition: var(--control-transition); }
-.integration-endpoint button svg { width: 16px; height: 16px; }
+.integration-token-reveal button svg, .integration-endpoint button svg { width: 16px; height: 16px; }
 .integration-steps { display: grid; gap: 7px; margin: 0; border-radius: 12px; padding: 11px 12px 11px 30px; color: #334155; background: #f8fafc; font-size: .74rem; line-height: 1.4; }
 .integration-steps code { color: var(--sky-900); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .68rem; }
 .integration-actions { display: grid; gap: 8px; }

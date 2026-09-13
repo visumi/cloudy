@@ -232,7 +232,6 @@ export function IntegrationDialog({ open, onClose, onClosingChange }: Integratio
                 <div className="integration-token-reveal">
                   <code>{token}</code>
                   <button type="button" onClick={() => void copyToken()} aria-label={isCopied ? "Token copiado" : "Copiar token"}>{isCopied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}</button>
-                  <small>Copie agora. Por segurança, ele não será mostrado novamente.</small>
                 </div>
               ) : metadata?.configured ? (
                 <p className="integration-token-meta"><code>{metadata.tokenPrefix}****</code></p>

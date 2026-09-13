@@ -272,7 +272,27 @@ export async function createIntegrationItem(db: Client, userId: string, payload:
     args: [userId, input.url]
   });
   const existingRow = existing.rows[0] as DbRow | undefined;
-  if (existingRow) return { item: mapItemRow(existingRow), duplicate: true };
+  if (existingRow) {
+    const existingItem = mapItemRow(existingRow);
+    if (existingItem.imageUrl === null || existingItem.faviconUrl === null) {
+      const preview = await resolveLinkPreview(input.url);
+      await db.execute({
+        sql: `UPDATE items
+          SET image_url = COALESCE(image_url, ?), favicon_url = COALESCE(favicon_url, ?), updated_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND user_id = ?`,
+        args: [preview.imageUrl, preview.faviconUrl, existingItem.id, userId]
+      });
+      return {
+        item: {
+          ...existingItem,
+          imageUrl: existingItem.imageUrl ?? preview.imageUrl,
+          faviconUrl: existingItem.faviconUrl ?? preview.faviconUrl
+        },
+        duplicate: true
+      };
+    }
+    return { item: existingItem, duplicate: true };
+  }
 
   const preview = await resolveLinkPreview(input.url);
   const itemId = crypto.randomUUID();

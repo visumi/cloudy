@@ -218,6 +218,26 @@ describe("link preview", () => {
     expect(second.duplicate).toBe(true);
   });
 
+  it("preenche a prévia de uma integração duplicada que ainda não tinha metadados", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(`
+      <meta property="og:image" content="/cover.jpg">
+      <link rel="icon" href="/favicon.png">
+    `, { status: 200, headers: { "content-type": "text/html" } })));
+    const execute = vi.fn(async (statement: { sql: string }) => {
+      if (statement.sql.includes("system_category = 'integrations'") && statement.sql.includes("LIMIT 1")) {
+        return { rows: [{ id: "item-4", name: "example.com", url: "https://example.com/reel/4", image_url: null, favicon_url: null, observation: null, system_category: "integrations", created_at: "2026-09-12", updated_at: "2026-09-12", category_id: null, category_name: null, category_color: null }] };
+      }
+      return { rows: [] };
+    });
+
+    const result = await createIntegrationItem({ execute } as Client, "user-1", { url: "https://example.com/reel/4" });
+
+    expect(result.duplicate).toBe(true);
+    expect(result.item.imageUrl).toBe("https://example.com/cover.jpg");
+    expect(result.item.faviconUrl).toBe("https://example.com/favicon.png");
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ sql: expect.stringContaining("COALESCE(image_url") }));
+  });
+
   it("bloqueia a criação da décima sexta categoria", async () => {
     const execute = vi.fn(async (statement: { sql: string }) => {
       if (statement.sql.includes("SELECT id, name, color FROM categories")) return { rows: [] };
