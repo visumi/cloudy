@@ -94,6 +94,32 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 .dropdown-menu-account-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .dropdown-menu-account-avatar svg { width: 19px; height: 19px; }
 .tag-manager-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: oklch(0.06 0.04 245 / .58); backdrop-filter: blur(6px); animation: item-backdrop-arrival 220ms ease both; }
+.integration-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: oklch(0.06 0.04 245 / .58); backdrop-filter: blur(6px); animation: item-backdrop-arrival 220ms ease both; }
+.integration-panel { position: relative; display: grid; width: min(100%, 500px); gap: 20px; border: 1px solid #bae6fd; border-radius: 24px; padding: 28px; color: var(--sky-900); background: #f0f9ff; box-shadow: 0 24px 54px oklch(0.04 0.03 245 / .36), inset 0 1px 0 white; animation: tag-manager-arrival 320ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.integration-close { position: absolute; top: 12px; right: 12px; display: grid; width: 36px; height: 36px; place-items: center; border: 0; border-radius: 50%; color: var(--sky-700); background: transparent; cursor: pointer; }
+.integration-close:focus-visible, .integration-actions button:focus-visible, .integration-token-reveal button:focus-visible { outline: 3px solid oklch(0.78 0.13 235); outline-offset: 3px; }
+.integration-heading { display: flex; align-items: center; gap: 14px; padding-right: 24px; }
+.integration-heading-icon { display: grid; width: 48px; height: 48px; flex: 0 0 auto; place-items: center; border-radius: 15px; color: #0c4a6e; background: #bae6fd; }
+.integration-heading-icon svg { width: 24px; height: 24px; }
+.integration-heading h2 { margin: 4px 0 5px; font-size: 1.5rem; }
+.integration-heading p, .integration-card p { margin: 0; color: var(--sky-700); font-size: .8rem; line-height: 1.45; }
+.integration-card { display: grid; gap: 14px; border: 1px solid #bae6fd; border-radius: 16px; padding: 16px; background: white; }
+.integration-card strong { font-size: .92rem; }
+.integration-token-meta { margin: 0; color: var(--sky-700); font-size: .78rem; }
+.integration-token-meta code, .integration-token-reveal code { overflow-wrap: anywhere; color: var(--sky-900); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .72rem; }
+.integration-token-reveal { display: grid; grid-template-columns: minmax(0, 1fr) 36px; align-items: center; gap: 8px; border-radius: 12px; padding: 10px; background: #e0f2fe; }
+.integration-token-reveal button { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid #7dd3fc; border-radius: 10px; color: #0369a1; background: white; cursor: pointer; }
+.integration-token-reveal small { grid-column: 1 / -1; color: var(--sky-700); font-size: .7rem; }
+.integration-actions { display: flex; align-items: center; gap: 12px; }
+.integration-primary, .integration-revoke { min-height: 40px; border-radius: 999px; padding: 0 15px; font-size: .76rem; font-weight: 750; cursor: pointer; }
+.integration-primary { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #0284c7; color: white; background: #0284c7; }
+.integration-primary svg { width: 16px; height: 16px; }
+.integration-revoke { border: 1px solid #fecaca; color: #b91c1c; background: transparent; }
+.integration-primary:disabled, .integration-revoke:disabled { cursor: wait; opacity: .6; }
+.integration-message { margin: 0; font-size: .78rem; }
+.integration-message--error { color: #b91c1c; }
+.integration-status { display: inline-flex; align-items: center; gap: 8px; margin: 0; color: var(--sky-700); font-size: .82rem; }
+.integration-status svg { width: 17px; height: 17px; animation: spin 900ms linear infinite; }
 .tag-manager-backdrop[data-closing="true"] { animation: item-backdrop-departure 180ms ease both; }
 .tag-manager-panel { --tag-manager-surface: #f0f9ff; position: relative; display: flex; flex-direction: column; width: min(100%, 520px); max-height: min(90dvh, 720px); overflow: hidden; border: 1px solid #bae6fd; border-radius: 24px; padding: 26px; color: var(--sky-900); background: var(--tag-manager-surface); box-shadow: 0 24px 54px oklch(0.04 0.03 245 / .36), inset 0 1px 0 white; animation: tag-manager-arrival 320ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 .tag-manager-panel[data-closing="true"] { animation: tag-manager-departure 190ms cubic-bezier(0.7, 0, 0.84, 0) both; }
@@ -205,6 +231,9 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 .category-node:hover, .category-node:focus-visible { filter: saturate(1.08); box-shadow: 0 18px 34px oklch(0.08 0.04 245 / .28); transform: translate(-50%, calc(-50% - 7px)) rotate(-3.5deg) scale(1.05); }
 .category-node-content { position: relative; z-index: 2; display: flex; width: 100%; align-items: center; gap: 8px; }
 .category-node-dot { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: var(--category-color); box-shadow: 0 0 0 4px color-mix(in srgb, var(--category-color) 18%, transparent); }
+.category-node-icon { display: grid; width: 26px; height: 26px; flex: 0 0 auto; place-items: center; border-radius: 9px; color: var(--category-ink); background: color-mix(in srgb, var(--category-color) 46%, white); }
+.category-node-icon svg { width: 15px; height: 15px; }
+.category-node--system { border-color: color-mix(in srgb, var(--category-color) 72%, white); }
 .category-node-copy { display: grid; min-width: 0; gap: 3px; }
 .category-node-copy strong { overflow: hidden; font-size: .78rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
 .category-node-copy small { font-size: .68rem; font-weight: 650; opacity: .78; }
@@ -385,5 +414,6 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
   .tag-manager-heading p { font-size: .78rem; }
 }
 @media (max-width: 639px) { .graph-category-toolbar { left: 12px; right: 12px; } .graph-category-heading strong { font-size: .86rem; } }
+@media (max-width: 639px) { .integration-backdrop { align-items: end; padding: 0; } .integration-panel { width: 100%; border-right: 0; border-bottom: 0; border-left: 0; border-radius: 22px 22px 0 0; padding: 22px 20px calc(20px + env(safe-area-inset-bottom)); } .integration-actions { flex-wrap: wrap; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 1ms !important; transition-duration: 1ms !important; } .item-node:hover, .item-node:focus-visible, .category-node:hover, .category-node:focus-visible { transform: translate(-50%, -50%); } .item-node:hover .item-node-image, .item-node:focus-visible .item-node-image, .item-node:hover .item-node-copy, .item-node:focus-visible .item-node-copy { transform: none; } .category-node:hover .category-node-preview, .category-node:focus-visible .category-node-preview { filter: saturate(.86); transition-delay: 0ms !important; } .category-node:hover .category-node-preview--0, .category-node:focus-visible .category-node-preview--0 { transform: rotate(-8deg); } .category-node:hover .category-node-preview--1, .category-node:focus-visible .category-node-preview--1 { transform: rotate(7deg); } .category-node:hover .category-node-preview--2, .category-node:focus-visible .category-node-preview--2 { transform: rotate(-5deg); } .category-node:hover .category-node-preview--3, .category-node:focus-visible .category-node-preview--3 { transform: rotate(6deg); } .category-node:hover .category-node-preview--4, .category-node:focus-visible .category-node-preview--4 { transform: rotate(-4deg); } }
 @media (prefers-reduced-motion: reduce) { .graph-connection-layer--categories[data-state="exiting"], .graph-connection-layer--items[data-state="exiting"] { animation: none !important; opacity: 0 !important; } .graph-connection-layer--categories[data-state="entering"], .graph-connection-layer--items[data-state="entering"] { animation: none !important; opacity: 1 !important; } .graph-nodes--categories[data-state="exiting"], .graph-nodes--items[data-state="exiting"] { animation: none !important; opacity: 0 !important; } .graph-nodes--categories[data-state="entering"], .graph-nodes--items[data-state="entering"] { animation: none !important; opacity: 1 !important; } .graph-nodes--categories[data-state="exiting"] .category-node, .graph-nodes--categories[data-state="entering"] .category-node, .graph-nodes--items[data-state="entering"] .item-node { animation: none !important; transform: translate(-50%, -50%) !important; } }

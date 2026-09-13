@@ -1,4 +1,4 @@
-import type { CategorySummary, CloudyItem } from "../../types/api";
+import { INTEGRATIONS_CATEGORY_ID, type CategorySummary, type CloudyItem } from "../../types/api";
 
 export interface GraphCluster {
   categoryId: string;
@@ -41,31 +41,85 @@ export interface ItemGraphLayout {
 }
 
 const UNTAGGED_CATEGORY_ID = "__untagged__";
+const INTEGRATIONS_NODE_POSITION = { left: 50, top: 72 };
 
 export function buildCategoryGraphLayout(categories: CategorySummary[]): CategoryGraphLayout {
+  const systemCategories = categories.filter((category) => category.id === INTEGRATIONS_CATEGORY_ID || category.isSystem);
+  const userCategories = categories.filter((category) => !systemCategories.includes(category));
   const nodes: CategoryGraphNode[] = [];
-  const connections: GraphConnection[] = [];
-  const ringCount = categories.length > 11 ? 2 : 1;
-  const outerCount = ringCount === 1 ? categories.length : Math.ceil(categories.length / 2);
+  const ringCount = userCategories.length > 11 ? 2 : 1;
+  const outerCount = ringCount === 1 ? userCategories.length : Math.ceil(userCategories.length / 2);
 
-  categories.forEach((category, index) => {
+  userCategories.forEach((category, index) => {
     const ring = ringCount === 1 || index < outerCount ? 0 : 1;
     const indexInRing = ring === 0 ? index : index - outerCount;
-    const countInRing = ring === 0 ? outerCount : categories.length - outerCount;
-    const isTwoCategoryBranch = categories.length === 2 && ring === 0;
-    const isExpandedSingleRing = ringCount === 1 && categories.length > 6;
-    const angle = (isTwoCategoryBranch ? -Math.PI * 2 / 3 : -Math.PI / 2) + (indexInRing * Math.PI * 2) / Math.max(countInRing, 1) + (ring === 1 ? Math.PI / Math.max(countInRing, 1) : 0);
+    const countInRing = ring === 0 ? outerCount : userCategories.length - outerCount;
+    const isTwoCategoryBranch = userCategories.length === 2 && ring === 0;
+    const isExpandedSingleRing = ringCount === 1 && userCategories.length > 6;
+    const baseAngle = (isTwoCategoryBranch ? -Math.PI * 2 / 3 : -Math.PI / 2) + (indexInRing * Math.PI * 2) / Math.max(countInRing, 1) + (ring === 1 ? Math.PI / Math.max(countInRing, 1) : 0);
+    const rebalancedPosition = getRebalancedInnerCategoryPosition(ring, countInRing, indexInRing);
+    const angle = ringCount === 1 && countInRing >= 6
+      ? spreadLowerCategoryAngle(baseAngle)
+      : spreadInnerLowerCategoryAngle(baseAngle, ring, countInRing, indexInRing);
     const radiusX = ring === 0 ? (isTwoCategoryBranch ? 42 : isExpandedSingleRing ? 42 : ringCount === 1 ? 34 : 44) : 29;
-    const radiusY = ring === 0 ? (isExpandedSingleRing ? 35 : ringCount === 1 ? 22 : 40) : 20;
+    const isInnerLowerCategory = ring === 1 && countInRing >= 7 && indexInRing >= countInRing - 3;
+    const radiusY = ring === 0 ? (isExpandedSingleRing ? 35 : ringCount === 1 ? 22 : 40) : isInnerLowerCategory ? 16 : 20;
     const isInnerBottomCard = ring === 1 && indexInRing === Math.floor(countInRing / 2);
-    const left = isInnerBottomCard ? 50 : clamp(50 + Math.cos(angle) * radiusX, 10, 90);
+    const left = rebalancedPosition?.left ?? (isInnerBottomCard ? 50 : clamp(50 + Math.cos(angle) * radiusX, 10, 90));
     const bottomSideLift = ring === 0 ? Math.max(Math.sin(angle), 0) * Math.abs(Math.cos(angle)) * 14 : 0;
-    const top = isInnerBottomCard ? 20 : clamp(48 + Math.sin(angle) * radiusY - bottomSideLift, 9, isExpandedSingleRing ? 82 : ringCount === 1 ? 66 : 78);
+    const top = rebalancedPosition?.top ?? (isInnerBottomCard ? 20 : clamp(48 + Math.sin(angle) * radiusY - bottomSideLift, 9, isExpandedSingleRing ? 82 : ringCount === 1 ? 66 : 78));
     nodes.push({ category, left, top });
-    connections.push({ kind: "core", x1: 50, y1: 48, x2: left, y2: top });
   });
 
-  return { nodes, connections };
+  const integrationNodes = systemCategories.map((category) => ({ category, left: INTEGRATIONS_NODE_POSITION.left, top: INTEGRATIONS_NODE_POSITION.top }));
+  const occupied = nodes.map(({ left, top }) => ({ left, top }));
+  const positionedNodes = nodes.map((node) => {
+    if (!systemCategories.length || !isReservedIntegrationSlot(node.left, node.top)) return node;
+    const position = findIntegrationSlotAlternative(occupied, node);
+    const currentIndex = occupied.findIndex((candidate) => candidate.left === node.left && candidate.top === node.top);
+    if (currentIndex >= 0) occupied[currentIndex] = position;
+    return { ...node, ...position };
+  });
+  const finalNodes = [...positionedNodes, ...integrationNodes];
+  return {
+    nodes: finalNodes,
+    connections: finalNodes.map(({ left, top }) => ({ kind: "core", x1: 50, y1: 48, x2: left, y2: top }))
+  };
+}
+
+function spreadLowerCategoryAngle(angle: number): number {
+  return angle >= Math.PI / 3 && angle < Math.PI ? angle - Math.PI / 6 : angle;
+}
+
+function spreadInnerLowerCategoryAngle(angle: number, ring: number, countInRing: number, indexInRing: number): number {
+  if (ring !== 1 || countInRing < 7 || indexInRing < countInRing - 3) return angle;
+
+  return [Math.PI / 3, Math.PI * 2 / 3, Math.PI * 5 / 6][indexInRing - (countInRing - 3)];
+}
+
+function getRebalancedInnerCategoryPosition(ring: number, countInRing: number, indexInRing: number): { left: number; top: number } | null {
+  if (ring !== 1 || countInRing < 7) return null;
+
+  const lowerSlot = indexInRing - (countInRing - 3);
+  if (lowerSlot === 0) return { left: 35, top: 16 };
+  if (lowerSlot === 2) return { left: 38, top: 34 };
+  return null;
+}
+
+function isReservedIntegrationSlot(left: number, top: number): boolean {
+  return Math.abs(left - INTEGRATIONS_NODE_POSITION.left) < 10 && top > 60;
+}
+
+function findIntegrationSlotAlternative(occupied: Array<{ left: number; top: number }>, node: { left: number; top: number }): { left: number; top: number } {
+  const candidates = [
+    { left: 22, top: 37 },
+    { left: 20, top: 68 },
+    { left: 80, top: 68 },
+    { left: 16, top: 48 },
+    { left: 84, top: 48 },
+    { left: 50, top: 24 }
+  ];
+  return candidates.find((candidate) => candidate !== node && occupied.every((other) => other === node || Math.hypot(candidate.left - other.left, candidate.top - other.top) > 12)) ?? candidates[0];
 }
 
 export function buildCategoryItemGraphLayout(items: CloudyItem[]): ItemGraphLayout {

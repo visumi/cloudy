@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CategorySummary, CloudyItem } from "../../types/api";
+import { INTEGRATIONS_CATEGORY_ID, type CategorySummary, type CloudyItem } from "../../types/api";
 import { buildCategoryGraphLayout, buildCategoryItemGraphLayout, buildItemGraphLayout } from "./item-graph";
 
 function category(id: string, name: string): CategorySummary {
@@ -53,6 +53,46 @@ describe("item graph layout", () => {
     expect(new Set(layout.nodes.slice(0, 6).map((node) => node.left)).size).toBeGreaterThan(1);
     expect(layout.connections.filter((connection) => connection.kind === "category")).toHaveLength(5);
     expect(layout.connections.filter((connection) => connection.kind === "item")).toHaveLength(2);
+  });
+
+  it("fixa Integrações abaixo da nuvem e libera o slot para uma categoria comum", () => {
+    const integration = { ...category("integrations", "Integrações"), id: INTEGRATIONS_CATEGORY_ID, isSystem: true };
+    const layout = buildCategoryGraphLayout([
+      category("a", "A"),
+      category("b", "B"),
+      category("c", "C"),
+      category("d", "D"),
+      integration
+    ]);
+    const integrationsNode = layout.nodes.find((node) => node.category.id === INTEGRATIONS_CATEGORY_ID)!;
+
+    expect(integrationsNode).toMatchObject({ left: 50, top: 72 });
+    expect(layout.nodes).toHaveLength(5);
+    expect(layout.nodes.filter((node) => node.left === 50 && node.top === 72)).toHaveLength(1);
+  });
+
+  it("abre o setor inferior entre 5h e 7h sem criar um card às 6h", () => {
+    const layout = buildCategoryGraphLayout(Array.from({ length: 6 }, (_, index) => category(`category-${index}`, `Categoria ${index}`)));
+
+    expect(layout.nodes.some(({ left, top }) => left > 50 && top > 48)).toBe(true);
+    expect(layout.nodes.some(({ left, top }) => left < 50 && top > 48)).toBe(true);
+    expect(layout.nodes.some(({ left, top }) => left === 50 && top > 60)).toBe(false);
+  });
+
+  it("move o card deslocado pela reserva de Integrações para o espaço livre superior esquerdo", () => {
+    const layout = buildCategoryGraphLayout([
+      ...Array.from({ length: 16 }, (_, index) => category(`category-${index}`, `Categoria ${index}`)),
+      { ...category("integrations", "Integrações"), id: INTEGRATIONS_CATEGORY_ID, isSystem: true }
+    ]);
+    const innerLowerNodes = layout.nodes.slice(13, 16);
+
+    expect(layout.nodes[4]).toMatchObject({ left: 22, top: 37 });
+    expect(Math.hypot(layout.nodes[4].left - layout.nodes[5].left, layout.nodes[4].top - layout.nodes[5].top)).toBeGreaterThan(18);
+    expect(innerLowerNodes.map(({ left, top }) => ({ left: Math.round(left), top: Math.round(top) }))).toEqual([
+      { left: 35, top: 16 },
+      { left: 36, top: 62 },
+      { left: 38, top: 34 }
+    ]);
   });
 
   it("distribui 70 itens por toda a tela sem empilhar os cards", () => {

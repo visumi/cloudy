@@ -1,4 +1,5 @@
 export type AccessRole = "owner" | "member";
+export const INTEGRATIONS_CATEGORY_ID = "__integrations__";
 
 export interface MeResponse {
   uid: string;
@@ -33,6 +34,7 @@ export interface CategorySummary extends CategoryRef {
   itemCount: number;
   recentItems: CategoryRecentItem[];
   isVirtual?: boolean;
+  isSystem?: boolean;
 }
 
 export interface CategoriesResponse {

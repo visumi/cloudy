@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type AnimationEvent, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Check, Copy, Globe, X } from "lucide-react";
+import { ArrowLeft, Blocks, Check, Copy, Globe, X } from "lucide-react";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
-import type { CategorySummary, CloudyItem } from "../../types/api";
+import { INTEGRATIONS_CATEGORY_ID, type CategorySummary, type CloudyItem } from "../../types/api";
 import { buildCategoryGraphLayout, buildCategoryItemGraphLayout } from "./item-graph";
 import { EMPTY_CATEGORY_COLOR, getCategoryColorStyle } from "./category-colors";
 
@@ -151,7 +151,7 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
           <div className="graph-nodes graph-nodes--categories" data-state={categoryNodesState} aria-hidden={categoryNodesState !== "active"} aria-label="Categorias salvas">
             {categoryLayout.nodes.map(({ category, left, top }, index) => (
               <button
-                className="category-node"
+                className={`category-node${category.id === INTEGRATIONS_CATEGORY_ID || category.isSystem ? " category-node--system" : ""}`}
                 key={category.id}
                 type="button"
                 style={{ left: `${left}%`, top: `${top}%`, "--graph-delay": `${Math.min(index, 7) * 18}ms`, ...getCategoryColorStyle(category.color) } as CSSProperties}
@@ -166,7 +166,7 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
                   ))}
                 </span>
                 <span className="category-node-content">
-                  <span className="category-node-dot" aria-hidden="true" />
+                  {category.id === INTEGRATIONS_CATEGORY_ID || category.isSystem ? <span className="category-node-icon" aria-hidden="true"><Blocks strokeWidth={2.1} /></span> : <span className="category-node-dot" aria-hidden="true" />}
                   <span className="category-node-copy">
                     <strong>{category.name}</strong>
                     <small>{formatItemCount(category.itemCount)}</small>
@@ -204,7 +204,7 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
           <button type="button" onClick={onRetry}>Tentar novamente</button>
         </div>
       )}
-      {!isLoading && !error && !isCategoryView && categories.length === 0 && (
+      {!isLoading && !error && !isCategoryView && categories.every((category) => category.id === INTEGRATIONS_CATEGORY_ID || category.isSystem) && (
         <div className="graph-empty-state">
           <p>Sua nuvem começa com uma referência.</p>
           <button type="button" onClick={onAddLink}>Adicionar primeiro link</button>
@@ -212,7 +212,7 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
       )}
       {!isLoading && !error && isCategoryView && items.length === 0 && (
         <div className="graph-empty-state">
-          <p>Esta categoria ainda não tem referências.</p>
+          <p>Esta categoria ainda não tem referências</p>
           <button type="button" onClick={onCategoryBack}>Voltar para categorias</button>
         </div>
       )}

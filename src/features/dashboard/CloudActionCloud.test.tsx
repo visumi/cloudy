@@ -26,4 +26,14 @@ describe("CloudActionCloud", () => {
     expect(addButton).not.toHaveAttribute("aria-haspopup");
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
+
+  it("mantém Integrações no menu para configurar o token", () => {
+    const onIntegrationsOpen = vi.fn();
+    render(<CloudActionCloud onIntegrationsOpen={onIntegrationsOpen} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir configurações" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Integrações" }));
+
+    expect(onIntegrationsOpen).toHaveBeenCalledOnce();
+  });
 });

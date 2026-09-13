@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Client } from "@libsql/client/web";
-import { createCategory, createItem, deleteCategory, listCategories, listCategoryItems, parseCategoryInput, parseCreateItemInput, resolveLinkPreview, UNTAGGED_CATEGORY_ID, updateCategory } from "./items";
+import { createCategory, createIntegrationItem, createItem, deleteCategory, listCategories, listCategoryItems, parseCategoryInput, parseCreateItemInput, parseIntegrationItemInput, resolveLinkPreview, UNTAGGED_CATEGORY_ID, INTEGRATIONS_CATEGORY_ID, updateCategory } from "./items";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -32,6 +32,11 @@ describe("item input", () => {
     });
   });
 
+  it("exige URL e limita o texto recebido pela integração", () => {
+    expect(parseIntegrationItemInput({ url: " https://instagram.com/reel/1 ", text: " uma   legenda " })).toEqual({ url: "https://instagram.com/reel/1", text: "uma legenda" });
+    expect(() => parseIntegrationItemInput({ text: "sem link" })).toThrowError("invalid_url");
+  });
+
   it("rejeita protocolos que não são links web", () => {
     expect(() => parseCreateItemInput({ name: "Referência", url: "javascript:alert(1)", categoryName: "Ideias" })).toThrowError("invalid_url");
   });
@@ -49,6 +54,13 @@ describe("category management", () => {
   it("normaliza e valida o nome e a cor da tag", () => {
     expect(parseCategoryInput({ name: "  Inspirações  ", color: "#A78BFA" })).toEqual({ name: "Inspirações", color: "#A78BFA" });
     expect(() => parseCategoryInput({ name: "Nova", color: "#ffffff" })).toThrowError("invalid_category_color");
+  });
+
+  it("reserva o nome e as rotas da categoria de sistema", async () => {
+    const execute = vi.fn(async () => ({ rows: [] }));
+    await expect(createCategory({ execute } as Client, "user-1", { name: "Integrações", color: "#38BDF8" })).rejects.toThrowError("category_reserved");
+    await expect(updateCategory({ execute } as Client, "user-1", "__integrations__", { name: "Outra", color: "#38BDF8" })).rejects.toThrowError("system_category");
+    await expect(deleteCategory({ execute } as Client, "user-1", "__integrations__")).rejects.toThrowError("system_category");
   });
 
   it("cria e atualiza uma tag com a contagem de itens", async () => {
@@ -93,7 +105,8 @@ describe("category management", () => {
 
     await expect(listCategories({ execute } as Client, "user-1")).resolves.toEqual([
       expect.objectContaining({ id: "category-1", itemCount: 6, recentItems: expect.arrayContaining([expect.objectContaining({ id: "recent-0" })]) }),
-      expect.objectContaining({ id: UNTAGGED_CATEGORY_ID, name: "Vazio", itemCount: 1, isVirtual: true, recentItems: [expect.objectContaining({ id: "empty-1" })] })
+      expect.objectContaining({ id: UNTAGGED_CATEGORY_ID, name: "Vazio", itemCount: 1, isVirtual: true, recentItems: [expect.objectContaining({ id: "empty-1" })] }),
+      expect.objectContaining({ id: INTEGRATIONS_CATEGORY_ID, name: "Integrações", itemCount: 1, isSystem: true })
     ]);
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ sql: expect.stringContaining("ROW_NUMBER() OVER") }));
   });
@@ -183,6 +196,26 @@ describe("link preview", () => {
     expect(created.category).toBeNull();
     expect(execute).not.toHaveBeenCalledWith(expect.objectContaining({ sql: expect.stringContaining("INSERT INTO categories") }));
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ sql: expect.stringContaining("INSERT INTO items") }));
+  });
+
+  it("salva a integração no agrupador reservado e evita duplicatas", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("<title>Reel inspirador</title>", { status: 200, headers: { "content-type": "text/html" } })));
+    let stored = false;
+    const execute = vi.fn(async (statement: { sql: string }) => {
+      if (statement.sql.includes("system_category = 'integrations'") && statement.sql.includes("LIMIT 1")) {
+        return { rows: stored ? [{ id: "item-3", name: "Legenda", url: "https://instagram.com/reel/3", image_url: null, favicon_url: null, observation: "Legenda", system_category: "integrations", created_at: "2026-09-12", updated_at: "2026-09-12", category_id: null, category_name: null, category_color: null }] : [] };
+      }
+      if (statement.sql.includes("INSERT INTO items")) { stored = true; return { rows: [] }; }
+      if (statement.sql.includes("WHERE i.id = ?")) return { rows: [{ id: "item-3", name: "Legenda", url: "https://instagram.com/reel/3", image_url: null, favicon_url: null, observation: "Legenda", system_category: "integrations", created_at: "2026-09-12", updated_at: "2026-09-12", category_id: null, category_name: null, category_color: null }] };
+      return { rows: [] };
+    });
+
+    const first = await createIntegrationItem({ execute } as Client, "user-1", { url: "https://instagram.com/reel/3", text: "Legenda" });
+    const second = await createIntegrationItem({ execute } as Client, "user-1", { url: "https://instagram.com/reel/3", text: "Legenda" });
+
+    expect(first.duplicate).toBe(false);
+    expect(first.item.category).toEqual({ id: INTEGRATIONS_CATEGORY_ID, name: "Integrações", color: "#38BDF8" });
+    expect(second.duplicate).toBe(true);
   });
 
   it("bloqueia a criação da décima sexta categoria", async () => {

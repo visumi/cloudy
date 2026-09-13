@@ -11,6 +11,8 @@ const MAX_ITEM_URL_LENGTH = 2048;
 const MAX_ITEM_OBSERVATION_LENGTH = 2000;
 const DEFAULT_CATEGORY_COLOR = "#38BDF8";
 export const UNTAGGED_CATEGORY_ID = "__untagged__";
+export const INTEGRATIONS_CATEGORY_ID = "__integrations__";
+const INTEGRATIONS_CATEGORY_NAME = "Integrações";
 const CATEGORY_COLORS = new Set([
   "#38BDF8",
   "#A78BFA",
@@ -47,6 +49,7 @@ export interface CategoryRecord {
   itemCount: number;
   recentItems: CategoryRecentItem[];
   isVirtual?: boolean;
+  isSystem?: boolean;
 }
 
 export interface CategoryRecentItem {
@@ -101,12 +104,25 @@ export async function listCategories(db: Client, userId: string): Promise<Catego
       isVirtual: true
     });
   }
+  const integrationsCountResult = await db.execute({
+    sql: "SELECT COUNT(*) AS item_count FROM items WHERE user_id = ? AND system_category = 'integrations'",
+    args: [userId]
+  });
+  categories.push({
+    id: INTEGRATIONS_CATEGORY_ID,
+    name: INTEGRATIONS_CATEGORY_NAME,
+    color: DEFAULT_CATEGORY_COLOR,
+    itemCount: readOptionalDbCount(integrationsCountResult.rows[0], "item_count"),
+    recentItems: recentItems.get(INTEGRATIONS_CATEGORY_ID) ?? [],
+    isSystem: true
+  });
   return categories;
 }
 
 export async function createCategory(db: Client, userId: string, payload: unknown): Promise<CategoryRecord> {
   const input = parseCategoryInput(payload);
   const normalizedName = normalizeCategoryName(input.name);
+  if (normalizedName === normalizeCategoryName(INTEGRATIONS_CATEGORY_NAME)) throw new HttpError(400, "category_reserved");
   const existing = await db.execute({
     sql: "SELECT id FROM categories WHERE user_id = ? AND normalized_name = ? LIMIT 1",
     args: [userId, normalizedName]
@@ -131,6 +147,7 @@ export async function createCategory(db: Client, userId: string, payload: unknow
 }
 
 export async function updateCategory(db: Client, userId: string, categoryId: string, payload: unknown): Promise<CategoryRecord> {
+  if (categoryId === INTEGRATIONS_CATEGORY_ID) throw new HttpError(403, "system_category");
   const input = parseCategoryInput(payload);
   const normalizedName = normalizeCategoryName(input.name);
   const current = await db.execute({
@@ -155,6 +172,7 @@ export async function updateCategory(db: Client, userId: string, categoryId: str
 }
 
 export async function deleteCategory(db: Client, userId: string, categoryId: string): Promise<{ id: string }> {
+  if (categoryId === INTEGRATIONS_CATEGORY_ID) throw new HttpError(403, "system_category");
   const result = await db.execute({
     sql: "SELECT id FROM categories WHERE id = ? AND user_id = ? LIMIT 1",
     args: [categoryId, userId]
@@ -171,7 +189,7 @@ export async function deleteCategory(db: Client, userId: string, categoryId: str
 
 export async function listItems(db: Client, userId: string): Promise<ItemRecord[]> {
   const result = await db.execute({
-    sql: `SELECT i.id, i.name, i.url, i.image_url, i.favicon_url, i.observation,
+    sql: `SELECT i.id, i.name, i.url, i.image_url, i.favicon_url, i.observation, i.system_category,
       i.created_at, i.updated_at, c.id AS category_id, c.name AS category_name, c.color AS category_color
       FROM items i
       LEFT JOIN categories c ON c.id = i.category_id AND c.user_id = i.user_id
@@ -183,7 +201,7 @@ export async function listItems(db: Client, userId: string): Promise<ItemRecord[
 }
 
 export async function listCategoryItems(db: Client, userId: string, categoryId: string): Promise<ItemRecord[]> {
-  if (categoryId !== UNTAGGED_CATEGORY_ID) {
+  if (categoryId !== UNTAGGED_CATEGORY_ID && categoryId !== INTEGRATIONS_CATEGORY_ID) {
     const category = await db.execute({
       sql: "SELECT id FROM categories WHERE id = ? AND user_id = ? LIMIT 1",
       args: [categoryId, userId]
@@ -191,10 +209,10 @@ export async function listCategoryItems(db: Client, userId: string, categoryId: 
     if (category.rows.length === 0) throw new HttpError(404, "category_not_found");
   }
 
-  const filter = categoryId === UNTAGGED_CATEGORY_ID ? "i.category_id IS NULL" : "i.category_id = ?";
-  const args = categoryId === UNTAGGED_CATEGORY_ID ? [userId] : [userId, categoryId];
+  const filter = categoryId === UNTAGGED_CATEGORY_ID ? "i.category_id IS NULL AND i.system_category IS NULL" : categoryId === INTEGRATIONS_CATEGORY_ID ? "i.system_category = 'integrations'" : "i.category_id = ?";
+  const args = categoryId === UNTAGGED_CATEGORY_ID || categoryId === INTEGRATIONS_CATEGORY_ID ? [userId] : [userId, categoryId];
   const result = await db.execute({
-    sql: `SELECT i.id, i.name, i.url, i.image_url, i.favicon_url, i.observation,
+    sql: `SELECT i.id, i.name, i.url, i.image_url, i.favicon_url, i.observation, i.system_category,
       i.created_at, i.updated_at, c.id AS category_id, c.name AS category_name, c.color AS category_color
       FROM items i
       LEFT JOIN categories c ON c.id = i.category_id AND c.user_id = i.user_id
@@ -213,13 +231,13 @@ export async function createItem(db: Client, userId: string, payload: unknown): 
   const itemId = crypto.randomUUID();
 
   await db.execute({
-    sql: `INSERT INTO items (id, user_id, category_id, name, url, image_url, favicon_url, observation)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO items (id, user_id, category_id, system_category, name, url, image_url, favicon_url, observation)
+      VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
     args: [itemId, userId, category?.id ?? null, input.name, input.url, preview.imageUrl, preview.faviconUrl, input.observation]
   });
 
   const result = await db.execute({
-    sql: `SELECT i.id, i.name, i.url, i.image_url, i.favicon_url, i.observation,
+    sql: `SELECT i.id, i.name, i.url, i.image_url, i.favicon_url, i.observation, i.system_category,
       i.created_at, i.updated_at, c.id AS category_id, c.name AS category_name, c.color AS category_color
       FROM items i
       LEFT JOIN categories c ON c.id = i.category_id AND c.user_id = i.user_id
@@ -230,6 +248,51 @@ export async function createItem(db: Client, userId: string, payload: unknown): 
   const row = result.rows[0] as DbRow | undefined;
   if (!row) throw new HttpError(500, "item_created_but_not_found");
   return mapItemRow(row);
+}
+
+export interface IntegrationItemInput {
+  url: string;
+  text: string | null;
+}
+
+export interface IntegrationItemResult {
+  item: ItemRecord;
+  duplicate: boolean;
+}
+
+export async function createIntegrationItem(db: Client, userId: string, payload: unknown): Promise<IntegrationItemResult> {
+  const input = parseIntegrationItemInput(payload);
+  const existing = await db.execute({
+    sql: `SELECT i.id, i.name, i.url, i.image_url, i.favicon_url, i.observation, i.system_category,
+      i.created_at, i.updated_at, c.id AS category_id, c.name AS category_name, c.color AS category_color
+      FROM items i
+      LEFT JOIN categories c ON c.id = i.category_id AND c.user_id = i.user_id
+      WHERE i.user_id = ? AND i.system_category = 'integrations' AND i.url = ?
+      LIMIT 1`,
+    args: [userId, input.url]
+  });
+  const existingRow = existing.rows[0] as DbRow | undefined;
+  if (existingRow) return { item: mapItemRow(existingRow), duplicate: true };
+
+  const preview = await resolveLinkPreview(input.url);
+  const itemId = crypto.randomUUID();
+  await db.execute({
+    sql: `INSERT INTO items (id, user_id, category_id, system_category, name, url, image_url, favicon_url, observation)
+      VALUES (?, ?, NULL, 'integrations', ?, ?, ?, ?, ?)`,
+    args: [itemId, userId, deriveIntegrationItemName(input.text, preview.title, input.url), input.url, preview.imageUrl, preview.faviconUrl, input.text]
+  });
+  const result = await db.execute({
+    sql: `SELECT i.id, i.name, i.url, i.image_url, i.favicon_url, i.observation, i.system_category,
+      i.created_at, i.updated_at, c.id AS category_id, c.name AS category_name, c.color AS category_color
+      FROM items i
+      LEFT JOIN categories c ON c.id = i.category_id AND c.user_id = i.user_id
+      WHERE i.id = ? AND i.user_id = ?
+      LIMIT 1`,
+    args: [itemId, userId]
+  });
+  const row = result.rows[0] as DbRow | undefined;
+  if (!row) throw new HttpError(500, "item_created_but_not_found");
+  return { item: mapItemRow(row), duplicate: false };
 }
 
 export async function previewItem(payload: unknown): Promise<ItemPreview> {
@@ -284,6 +347,13 @@ export function parseCreateItemInput(payload: unknown): CreateItemInput {
   return { name, url, categoryName, categoryColor, observation };
 }
 
+export function parseIntegrationItemInput(payload: unknown): IntegrationItemInput {
+  const source = readObject(payload);
+  const url = readUrl(source.url);
+  const text = source.text == null ? null : normalizeText(readRequiredString(source.text, "text")).slice(0, MAX_ITEM_OBSERVATION_LENGTH) || null;
+  return { url, text };
+}
+
 export function parseCategoryInput(payload: unknown): CategoryInput {
   const source = readObject(payload);
   const name = normalizeText(readRequiredString(source.name, "category_name"));
@@ -329,6 +399,13 @@ function parseHttpUrl(value: string): URL {
 
 function normalizeText(value: string): string {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function deriveIntegrationItemName(text: string | null, previewTitle: string | null, url: string): string {
+  const textName = text?.replace(/https?:\/\/\S+/gi, "").trim();
+  const source = textName || previewTitle || new URL(url).hostname.replace(/^www\./i, "") || "Integração";
+  const normalized = normalizeText(source);
+  return Array.from(normalized).slice(0, MAX_ITEM_NAME_LENGTH).join("") || "Integração";
 }
 
 function normalizeCategoryName(value: string): string {
@@ -402,6 +479,7 @@ async function ensureCategoryItemCapacity(db: Client, userId: string, categoryId
 }
 
 function mapItemRow(row: DbRow): ItemRecord {
+  const systemCategory = readNullableString(row, "system_category");
   const categoryId = readNullableString(row, "category_id");
   const categoryName = readNullableString(row, "category_name");
   return {
@@ -411,7 +489,7 @@ function mapItemRow(row: DbRow): ItemRecord {
     imageUrl: readNullableString(row, "image_url"),
     faviconUrl: readNullableString(row, "favicon_url"),
     observation: readNullableString(row, "observation"),
-    category: categoryId && categoryName ? { id: categoryId, name: categoryName, color: readCategoryColor(row.category_color) } : null,
+    category: systemCategory === "integrations" ? { id: INTEGRATIONS_CATEGORY_ID, name: INTEGRATIONS_CATEGORY_NAME, color: DEFAULT_CATEGORY_COLOR } : categoryId && categoryName ? { id: categoryId, name: categoryName, color: readCategoryColor(row.category_color) } : null,
     createdAt: readDbString(row, "created_at"),
     updatedAt: readDbString(row, "updated_at")
   };
@@ -430,12 +508,12 @@ function mapCategoryRow(row: DbRow): CategoryRecord {
 async function listRecentItemsByCategory(db: Client, userId: string): Promise<Map<string, CategoryRecentItem[]>> {
   const result = await db.execute({
     sql: `WITH ranked_items AS (
-      SELECT i.id, i.name, i.image_url, i.favicon_url, i.created_at, i.category_id,
-        ROW_NUMBER() OVER (PARTITION BY i.category_id ORDER BY i.created_at DESC, i.id DESC) AS item_rank
+      SELECT i.id, i.name, i.image_url, i.favicon_url, i.created_at, i.category_id, i.system_category,
+        ROW_NUMBER() OVER (PARTITION BY COALESCE(i.system_category, i.category_id) ORDER BY i.created_at DESC, i.id DESC) AS item_rank
       FROM items i
       WHERE i.user_id = ?
     )
-    SELECT id, name, image_url, favicon_url, created_at, category_id
+    SELECT id, name, image_url, favicon_url, created_at, category_id, system_category
     FROM ranked_items
     WHERE item_rank <= 5
     ORDER BY category_id, created_at DESC, id DESC`,
@@ -443,7 +521,7 @@ async function listRecentItemsByCategory(db: Client, userId: string): Promise<Ma
   });
   const grouped = new Map<string, CategoryRecentItem[]>();
   for (const row of result.rows as DbRow[]) {
-    const categoryId = readNullableString(row, "category_id") ?? UNTAGGED_CATEGORY_ID;
+    const categoryId = readNullableString(row, "system_category") === "integrations" ? INTEGRATIONS_CATEGORY_ID : readNullableString(row, "category_id") ?? UNTAGGED_CATEGORY_ID;
     const items = grouped.get(categoryId) ?? [];
     items.push(mapCategoryRecentItem(row));
     grouped.set(categoryId, items);
@@ -452,6 +530,17 @@ async function listRecentItemsByCategory(db: Client, userId: string): Promise<Ma
 }
 
 async function listRecentItemsForCategory(db: Client, userId: string, categoryId: string): Promise<CategoryRecentItem[]> {
+  if (categoryId === INTEGRATIONS_CATEGORY_ID) {
+    const result = await db.execute({
+      sql: `SELECT i.id, i.name, i.image_url, i.favicon_url, i.created_at
+        FROM items i
+        WHERE i.user_id = ? AND i.system_category = 'integrations'
+        ORDER BY i.created_at DESC, i.id DESC
+        LIMIT 5`,
+      args: [userId]
+    });
+    return (result.rows as DbRow[]).map(mapCategoryRecentItem);
+  }
   const result = await db.execute({
     sql: `SELECT i.id, i.name, i.image_url, i.favicon_url, i.created_at
       FROM items i

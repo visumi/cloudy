@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { CategorySummary, CloudyItem } from "../../types/api";
+import { INTEGRATIONS_CATEGORY_ID, type CategorySummary, type CloudyItem } from "../../types/api";
 import { ItemGraph } from "./ItemGraph";
 
 const category: CategorySummary = {
@@ -99,6 +99,19 @@ describe("ItemGraph", () => {
     expect(screen.getByRole("button", { name: "Página de inspiração, categoria Vazio" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Página de inspiração, categoria Vazio" }));
     expect(await screen.findByText("Vazio", { selector: ".item-detail-category > span:last-child" })).toBeInTheDocument();
+  });
+
+  it("renderiza Integrações com o ícone do menu e abre sua categoria", async () => {
+    const user = userEvent.setup();
+    const integrations: CategorySummary = { id: INTEGRATIONS_CATEGORY_ID, name: "Integrações", color: "#38BDF8", itemCount: 2, recentItems: [], isSystem: true };
+    const onCategorySelect = vi.fn();
+    renderGraph({ categories: [category, integrations], onCategorySelect });
+
+    const node = screen.getByRole("button", { name: "Categoria Integrações, 2 itens" });
+    expect(node).toHaveClass("category-node--system");
+    expect(node.querySelector("svg")).toBeInTheDocument();
+    await user.click(node);
+    expect(onCategorySelect).toHaveBeenCalledWith(INTEGRATIONS_CATEGORY_ID);
   });
 
   it("mantém o zoom reduzido para exibir todos os itens", () => {

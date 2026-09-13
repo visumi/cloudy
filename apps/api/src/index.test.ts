@@ -67,6 +67,39 @@ describe("API base", () => {
     expect(createItem).toHaveBeenCalledWith(expect.anything(), "uid-1", { name: "Referência", url: "https://example.com", categoryName: "Ideias" });
   });
 
+  it("cria item pelo token restrito do Atalho", async () => {
+    const createIntegrationItem = vi.fn(async () => ({ item: { id: "item-1" }, duplicate: false }));
+    const authenticateShortcutToken = vi.fn(async () => ({ id: "token-1", userId: "uid-1" }));
+    const dependencies: RequestDependencies = {
+      authenticate: vi.fn(),
+      authenticateShortcutToken,
+      createDatabaseClient: vi.fn(() => ({} as never)),
+      createIntegrationItem,
+      resolveAuthenticatedUser: vi.fn(),
+      upsertUser: vi.fn(),
+      listItems: vi.fn(),
+      createItem: vi.fn(),
+      previewItem: vi.fn()
+    };
+    const response = await handleRequest(new Request("https://cloudy-api.isumi.com.br/integrations/shortcut/items", { method: "POST", headers: { "X-Cloudy-Capture-Token": "cly_cap_test", "Content-Type": "application/json" }, body: JSON.stringify({ url: "https://instagram.com/reel/1" }) }), env, dependencies);
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({ item: { id: "item-1" }, duplicate: false });
+    expect(authenticateShortcutToken).toHaveBeenCalledWith(expect.anything(), "cly_cap_test");
+    expect(createIntegrationItem).toHaveBeenCalledWith(expect.anything(), "uid-1", { url: "https://instagram.com/reel/1" });
+  });
+
+  it("gera token usando a sessão Firebase, sem expor o token em cache", async () => {
+    const createShortcutToken = vi.fn(async () => ({ configured: true, token: "cly_cap_secret", tokenPrefix: "cly_cap_secre", createdAt: "now", lastUsedAt: null }));
+    const dependencies: RequestDependencies = { authenticate: vi.fn(async () => identity), createDatabaseClient: vi.fn(() => ({} as never)), resolveAuthenticatedUser: vi.fn(async () => profile), upsertUser: vi.fn(), listItems: vi.fn(), createItem: vi.fn(), previewItem: vi.fn(), createShortcutToken };
+    const response = await handleRequest(new Request("https://cloudy-api.isumi.com.br/integrations/shortcut/token", { method: "POST", headers: { Authorization: "Bearer firebase", "Content-Type": "application/json" } }), env, dependencies);
+
+    expect(response.status).toBe(201);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toMatchObject({ token: "cly_cap_secret" });
+    expect(createShortcutToken).toHaveBeenCalledWith(expect.anything(), "uid-1");
+  });
+
   it("gera prévia sem persistir o item", async () => {
     const previewItem = vi.fn(async () => ({ title: "Example", imageUrl: null, faviconUrl: "https://example.com/favicon.ico" }));
     const dependencies: RequestDependencies = { authenticate: vi.fn(async () => identity), createDatabaseClient: vi.fn(() => ({} as never)), resolveAuthenticatedUser: vi.fn(async () => profile), upsertUser: vi.fn(), listItems: vi.fn(), createItem: vi.fn(), previewItem };

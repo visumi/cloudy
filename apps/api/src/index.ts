@@ -1,5 +1,6 @@
 import { authenticate, resolveAuthenticatedUser, upsertUser } from "./access";
-import { createCategory, createItem, deleteCategory, listCategories, listCategoryItems, listItems, previewItem, updateCategory } from "./items";
+import { createCategory, createIntegrationItem, createItem, deleteCategory, listCategories, listCategoryItems, listItems, previewItem, updateCategory } from "./items";
+import { authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken } from "./integration-tokens";
 import { createDatabaseClient, type AuthUser, type Env, type HttpError } from "./shared";
 import { HttpError as CloudyHttpError } from "./shared";
 
@@ -17,8 +18,13 @@ export interface RequestDependencies {
   createCategory?: typeof createCategory;
   updateCategory?: typeof updateCategory;
   deleteCategory?: typeof deleteCategory;
+  createIntegrationItem?: typeof createIntegrationItem;
+  authenticateShortcutToken?: typeof authenticateShortcutToken;
+  createShortcutToken?: typeof createShortcutToken;
+  getShortcutToken?: typeof getShortcutToken;
+  revokeShortcutToken?: typeof revokeShortcutToken;
 }
-const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, listCategoryItems, createItem, previewItem, listCategories, createCategory, updateCategory, deleteCategory };
+const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, listCategoryItems, createItem, previewItem, listCategories, createCategory, updateCategory, deleteCategory, createIntegrationItem, authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken };
 
 export default { fetch: (request: Request, env: Env) => handleRequest(request, env) } satisfies ExportedHandler<Env>;
 
@@ -28,6 +34,12 @@ export async function handleRequest(request: Request, env: Env, dependencies: Re
   try {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/health") return json({ ok: true, service: "cloudy-api" }, 200, corsHeaders);
+    if (request.method === "POST" && url.pathname === "/integrations/shortcut/items") {
+      const db = dependencies.createDatabaseClient(env);
+      const identity = await (dependencies.authenticateShortcutToken ?? defaultDependencies.authenticateShortcutToken!)(db, request.headers.get("X-Cloudy-Capture-Token"));
+      const result = await (dependencies.createIntegrationItem ?? defaultDependencies.createIntegrationItem!)(db, identity.userId, await readRequestJson(request));
+      return json(result, result.duplicate ? 200 : 201, corsHeaders);
+    }
     const identity = await dependencies.authenticate(request, env);
     const db = dependencies.createDatabaseClient(env);
     const user = await dependencies.resolveAuthenticatedUser(db, identity, env);
@@ -36,6 +48,16 @@ export async function handleRequest(request: Request, env: Env, dependencies: Re
       return json(user, 200, corsHeaders);
     }
     if (!user.allowed) return json({ error: "forbidden" }, 403, corsHeaders);
+    if (request.method === "GET" && url.pathname === "/integrations/shortcut/token") {
+      return json(await (dependencies.getShortcutToken ?? defaultDependencies.getShortcutToken!)(db, user.uid), 200, corsHeaders);
+    }
+    if (request.method === "POST" && url.pathname === "/integrations/shortcut/token") {
+      return json(await (dependencies.createShortcutToken ?? defaultDependencies.createShortcutToken!)(db, user.uid), 201, noStoreHeaders(corsHeaders));
+    }
+    if (request.method === "DELETE" && url.pathname === "/integrations/shortcut/token") {
+      await (dependencies.revokeShortcutToken ?? defaultDependencies.revokeShortcutToken!)(db, user.uid);
+      return json({ ok: true }, 200, corsHeaders);
+    }
     if (request.method === "POST" && url.pathname === "/items/preview") {
       return json(await dependencies.previewItem(await readRequestJson(request)), 200, corsHeaders);
     }
@@ -76,7 +98,7 @@ function buildCorsHeaders(request: Request, env: Env): Headers {
   const allowedOrigins = new Set(["http://localhost:5173", "http://127.0.0.1:5173", "https://cloudy.isumi.com.br", ...parseAllowedOrigins(env.ALLOWED_ORIGIN)]);
   if (origin && allowedOrigins.has(origin)) { headers.set("Access-Control-Allow-Origin", origin); headers.set("Vary", "Origin"); }
   headers.set("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
-  headers.set("Access-Control-Allow-Headers", "Authorization,Content-Type");
+  headers.set("Access-Control-Allow-Headers", "Authorization,Content-Type,X-Cloudy-Capture-Token");
   headers.set("Access-Control-Max-Age", "86400");
   return headers;
 }
@@ -88,4 +110,9 @@ function json(body: unknown, status: number, headers?: Headers): Response {
   const responseHeaders = new Headers(headers);
   Object.entries(jsonHeaders).forEach(([key, value]) => responseHeaders.set(key, value));
   return new Response(JSON.stringify(body), { status, headers: responseHeaders });
+}
+function noStoreHeaders(headers: Headers): Headers {
+  const next = new Headers(headers);
+  next.set("Cache-Control", "no-store");
+  return next;
 }

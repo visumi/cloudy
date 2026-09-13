@@ -5,6 +5,7 @@ import { CloudActionCloud } from "./CloudActionCloud";
 import { ItemDialog } from "../items/ItemDialog";
 import { ItemGraph } from "../items/ItemGraph";
 import { TagManagerDialog } from "../settings/TagManagerDialog";
+import { IntegrationDialog } from "../settings/IntegrationDialog";
 import { EMPTY_CATEGORY_COLOR } from "../items/category-colors";
 import type { CategoriesResponse, CategoryRecentItem, CategorySummary, CloudyItem, ItemsResponse } from "../../types/api";
 
@@ -51,6 +52,7 @@ export function CloudyShell() {
   const [isItemDialogClosing, setIsItemDialogClosing] = useState(false);
   const [isItemDetailOpen, setIsItemDetailOpen] = useState(false);
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
+  const [isIntegrationDialogOpen, setIsIntegrationDialogOpen] = useState(false);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
@@ -61,12 +63,12 @@ export function CloudyShell() {
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const categoryRequestId = useRef(0);
   const isActionCloudHidden = useActionCloudIdle(isMenuOpen);
-  const isActionCloudSuppressed = isActionCloudHidden || isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen;
-  const isModalOpen = isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen;
+  const isActionCloudSuppressed = isActionCloudHidden || isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen;
+  const isModalOpen = isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen;
   const photoURL = user?.photoURL ?? profile?.picture;
   const email = user?.email ?? profile?.email;
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId) ?? null;
-  const managedCategories = useMemo(() => categories.filter((category) => !category.isVirtual), [categories]);
+  const managedCategories = useMemo(() => categories.filter((category) => !category.isVirtual && !category.isSystem), [categories]);
   const visibleItems = selectedCategoryId ? categoryItems[selectedCategoryId] ?? [] : [];
 
   const loadCategories = useCallback(async () => {
@@ -129,8 +131,8 @@ export function CloudyShell() {
   }, []);
 
   const handleCategoriesChange = useCallback((nextCategories: CategorySummary[]) => {
-    const virtualCategory = categories.find((category) => category.isVirtual);
-    const next = sortCategories([...nextCategories.filter((category) => !category.isVirtual), ...(virtualCategory ? [virtualCategory] : [])]);
+    const reservedCategories = categories.filter((category) => category.isVirtual || category.isSystem);
+    const next = sortCategories([...nextCategories.filter((category) => !category.isVirtual && !category.isSystem), ...reservedCategories]);
     setCategories(next);
     setCategoryItems({});
     if (selectedCategoryId && !next.some((category) => category.id === selectedCategoryId)) handleCategoryBack();
@@ -160,11 +162,12 @@ export function CloudyShell() {
         </ItemGraph>
       </section>
       <aside className={`action-cloud-dock${isActionCloudSuppressed ? " action-cloud-dock--hidden" : ""}`} aria-label="Ações do Cloudy" aria-hidden={isActionCloudSuppressed}>
-        <CloudActionCloud email={email} name={profile?.name} onMenuOpenChange={setIsMenuOpen} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} onAddLink={() => setIsItemDialogOpen(true)} onTagsOpen={() => setIsTagManagerOpen(true)} />
+        <CloudActionCloud email={email} name={profile?.name} onMenuOpenChange={setIsMenuOpen} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} onAddLink={() => setIsItemDialogOpen(true)} onTagsOpen={() => setIsTagManagerOpen(true)} onIntegrationsOpen={() => setIsIntegrationDialogOpen(true)} />
       </aside>
       {savedMessage && <p className="workspace-toast" role="status">{savedMessage}</p>}
       <ItemDialog open={isItemDialogOpen} categoryOptions={managedCategories} onClose={() => setIsItemDialogOpen(false)} onCreated={handleItemCreated} onClosingChange={setIsItemDialogClosing} />
       <TagManagerDialog open={isTagManagerOpen} categories={managedCategories} onClose={() => setIsTagManagerOpen(false)} onCategoriesChange={handleCategoriesChange} />
+      <IntegrationDialog open={isIntegrationDialogOpen} onClose={() => setIsIntegrationDialogOpen(false)} />
     </main>
   );
 }
