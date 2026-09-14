@@ -197,7 +197,6 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
         <div className="modal-heading item-dialog-heading">
           <div className="modal-heading-icon item-dialog-heading-icon" aria-hidden="true"><Plus /></div>
           <div className="modal-heading-copy">
-            <span className="item-dialog-kicker">Nova referência</span>
             <h2 id="item-dialog-title">Criar item</h2>
             <p>Preencha os dados abaixo</p>
           </div>
@@ -256,14 +255,14 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
           {previewMessage && <p className="field-hint">{previewMessage}</p>}
 
           <div className="item-category-heading">
-            <span className="field-label">Tag</span>
+            <span className="field-label">Coleção</span>
             <span className="field-label"><span>Opcional</span></span>
           </div>
           <div
             ref={categoryGroupRef}
             className="category-orbit"
             role="group"
-            aria-label="Escolha uma tag existente"
+            aria-label="Escolha uma coleção existente"
             tabIndex={-1}
           >
             <div className="category-orbit-glow" aria-hidden="true" />
@@ -298,12 +297,11 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
             <p className="item-required-fields" id="item-required-fields-error" role="alert">
               <span className="item-required-fields-label">Preencha <MoveRight aria-hidden="true" /></span>
               <span className="item-required-field">{missingRequiredFields.join(" e ")}</span>
-              <span className="item-required-marker" aria-hidden="true" />
             </p>
           )}
-          {error && <p className="item-dialog-error" role="alert"><span>{error}</span><span className="item-required-marker" aria-hidden="true" /></p>}
-          <button className="button-action item-dialog-submit" type="submit" disabled={saving} aria-label={saving ? "Salvando..." : "Salvar"}>
-            {saving ? <><LoaderCircle className="item-dialog-submit-loader" aria-hidden="true" /> Salvando...</> : "Salvar"}
+          {error && <p className="item-dialog-error" role="alert"><span>{error}</span></p>}
+          <button className="button-action item-dialog-submit" type="submit" disabled={saving} aria-busy={saving} aria-label={saving ? "Salvando..." : "Salvar"}>
+            {saving ? <><LoaderCircle className="button-loading-spinner" aria-hidden="true" /> <span>Salvando…</span></> : "Salvar"}
           </button>
         </form>
       </section>
@@ -319,10 +317,10 @@ function formatItemError(error: unknown, fallback: string): string {
     invalid_url: "Informe um link válido começando com http:// ou https://.",
     invalid_url_length: "O link deve ter até 2.048 caracteres.",
     invalid_item_name: "Escolha um nome de até 24 caracteres.",
-    invalid_category_name: "Informe uma categoria de até 12 caracteres.",
+    invalid_category_name: "Informe uma coleção de até 12 caracteres.",
     invalid_item_observation: "A observação deve ter até 120 caracteres.",
-    category_limit_reached: "Você pode criar até 15 categorias.",
-    category_item_limit_reached: "Essa categoria já tem 70 itens."
+    category_limit_reached: "Você pode criar até 15 coleções.",
+    category_item_limit_reached: "Essa coleção já tem 100 itens."
   };
   return messages[error.code] || fallback;
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type AnimationEvent } from "react";
 import { createPortal } from "react-dom";
-import { Blocks, Check, Copy, KeyRound, LoaderCircle, RefreshCw, ShieldCheck, X } from "lucide-react";
+import { Blocks, Check, Copy, KeyRound, LoaderCircle, X } from "lucide-react";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
 import { ApiError, apiBaseUrl, apiRequest } from "../../lib/api";
 
@@ -28,6 +28,7 @@ export function IntegrationDialog({ open, onClose, onClosingChange }: Integratio
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [savingAction, setSavingAction] = useState<"generate" | "revoke" | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [isEndpointCopied, setIsEndpointCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,6 +128,7 @@ export function IntegrationDialog({ open, onClose, onClosingChange }: Integratio
   const generateToken = async () => {
     setError(null);
     setIsSaving(true);
+    setSavingAction("generate");
     setIsCopied(false);
     try {
       const created = await apiRequest<CreatedShortcutToken>("/integrations/shortcut/token", { method: "POST" });
@@ -136,12 +138,14 @@ export function IntegrationDialog({ open, onClose, onClosingChange }: Integratio
       setError(requestError instanceof ApiError && requestError.code === "forbidden" ? "Sua conta não pode configurar integrações." : "Não conseguimos gerar o token agora.");
     } finally {
       setIsSaving(false);
+      setSavingAction(null);
     }
   };
 
   const revokeToken = async () => {
     setError(null);
     setIsSaving(true);
+    setSavingAction("revoke");
     try {
       await apiRequest<{ ok: boolean }>("/integrations/shortcut/token", { method: "DELETE" });
       setMetadata({ configured: false, tokenPrefix: null, createdAt: null, lastUsedAt: null });
@@ -150,6 +154,7 @@ export function IntegrationDialog({ open, onClose, onClosingChange }: Integratio
       setError("Não conseguimos revogar o token agora.");
     } finally {
       setIsSaving(false);
+      setSavingAction(null);
     }
   };
 
@@ -223,22 +228,22 @@ export function IntegrationDialog({ open, onClose, onClosingChange }: Integratio
                   <KeyRound aria-hidden="true" />
                   <div>
                     <strong>Token do Atalho</strong>
-                    <p>Permite registrar novos links na categoria Integrações.</p>
+                    <p>Permite registrar novos links na coleção Integrações.</p>
                   </div>
                 </div>
                 <span className={`integration-status-pill${metadata?.configured || token ? " integration-status-pill--active" : ""}`}>{token ? "NOVO" : metadata?.configured ? "ATIVO" : "INATIVO"}</span>
               </div>
               {token ? (
                 <div className="integration-token-reveal">
-                  <code>{token}</code>
+                  <code title={token}>{token}</code>
                   <button type="button" onClick={() => void copyToken()} aria-label={isCopied ? "Token copiado" : "Copiar token"}>{isCopied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}</button>
                 </div>
               ) : metadata?.configured ? (
                 <p className="integration-token-meta"><code>{metadata.tokenPrefix}****</code></p>
-              ) : <p className="integration-token-meta">Nenhum token configurado.</p>}
+              ) : null}
               <div className="integration-actions">
-                <button className="button-action integration-primary" type="button" disabled={isSaving} onClick={() => void generateToken()}>{isSaving ? <LoaderCircle aria-hidden="true" /> : metadata?.configured ? <RefreshCw aria-hidden="true" /> : <ShieldCheck aria-hidden="true" />}{metadata?.configured ? "Gerar novo token" : "Gerar token"}</button>
-                {metadata?.configured && <button className="button-action integration-revoke" type="button" disabled={isSaving} onClick={() => void revokeToken()}>Revogar token</button>}
+                <button className="button-action integration-primary" type="button" disabled={isSaving} aria-busy={savingAction === "generate"} onClick={() => void generateToken()}>{savingAction === "generate" && <LoaderCircle className="button-loading-spinner" aria-hidden="true" />}<span>{savingAction === "generate" ? "Gerando token…" : metadata?.configured ? "Gerar novo token" : "Gerar token"}</span></button>
+                {metadata?.configured && <button className="button-action integration-revoke" type="button" disabled={isSaving} aria-busy={savingAction === "revoke"} onClick={() => void revokeToken()}>{savingAction === "revoke" && <LoaderCircle className="button-loading-spinner" aria-hidden="true" />}<span>{savingAction === "revoke" ? "Revogando…" : "Revogar token"}</span></button>}
               </div>
             </div>
             {error && <p className="integration-message integration-message--error" role="alert">{error}</p>}
@@ -256,7 +261,7 @@ export function IntegrationDialog({ open, onClose, onClosingChange }: Integratio
                 </div>
               </div>
               <div className="integration-endpoint">
-                <code>{shortcutEndpoint}</code>
+                <code title={shortcutEndpoint}>{shortcutEndpoint}</code>
                 <button type="button" onClick={() => void copyEndpoint()} aria-label={isEndpointCopied ? "Endpoint copiado" : "Copiar endpoint"}>{isEndpointCopied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}</button>
               </div>
               <ol className="integration-steps">

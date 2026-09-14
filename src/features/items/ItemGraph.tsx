@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type AnimationEvent, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Blocks, Check, Copy, Globe, NotepadText, X } from "lucide-react";
+import { ArrowLeft, Blocks, Check, Copy, Ghost, Globe, NotepadText, X } from "lucide-react";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
 import { INTEGRATIONS_CATEGORY_ID, type CategorySummary, type CloudyItem } from "../../types/api";
 import { buildCategoryGraphLayout, buildCategoryItemGraphLayout } from "./item-graph";
@@ -121,7 +121,7 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
     <div className={`graph-scene${isCategoryView ? " graph-scene--category" : " graph-scene--overview"}`}>
       {selectedCategory && (
         <div className="graph-category-toolbar">
-          <button className="graph-back-button" type="button" onClick={onCategoryBack} aria-label="Voltar para todas as categorias" title="Voltar para todas as categorias">
+          <button className="graph-back-button" type="button" onClick={onCategoryBack} aria-label="Voltar para todas as coleções" title="Voltar para todas as coleções">
             <ArrowLeft aria-hidden="true" />
           </button>
           <div className="graph-category-heading" aria-live="polite">
@@ -148,14 +148,14 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
             </g>
           </svg>
           <div className="graph-cloud">{children}</div>
-          <div className="graph-nodes graph-nodes--categories" data-state={categoryNodesState} aria-hidden={categoryNodesState !== "active"} aria-label="Categorias salvas">
+          <div className="graph-nodes graph-nodes--categories" data-state={categoryNodesState} aria-hidden={categoryNodesState !== "active"} aria-label="Coleções salvas">
             {categoryLayout.nodes.map(({ category, left, top }, index) => (
               <button
-                className={`category-node${category.id === INTEGRATIONS_CATEGORY_ID || category.isSystem ? " category-node--system" : ""}`}
+                className={`category-node${category.id === INTEGRATIONS_CATEGORY_ID || category.isSystem ? " category-node--system" : category.isVirtual ? " category-node--virtual" : ""}`}
                 key={category.id}
                 type="button"
                 style={{ left: `${left}%`, top: `${top}%`, "--graph-delay": `${Math.min(index, 7) * 18}ms`, ...getCategoryColorStyle(category.color) } as CSSProperties}
-                aria-label={`Categoria ${category.name}, ${formatItemCount(category.itemCount)}`}
+                aria-label={`Coleção ${category.name}, ${formatItemCount(category.itemCount)}`}
                 onClick={() => onCategorySelect(category.id)}
               >
                 <span className="category-node-orbit" aria-hidden="true">
@@ -166,7 +166,7 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
                   ))}
                 </span>
                 <span className="category-node-content">
-                  {category.id === INTEGRATIONS_CATEGORY_ID || category.isSystem ? <span className="category-node-icon" aria-hidden="true"><Blocks strokeWidth={2.1} /></span> : <span className="category-node-dot" aria-hidden="true" />}
+                  {category.id === INTEGRATIONS_CATEGORY_ID || category.isSystem ? <span className="category-node-icon" aria-hidden="true"><Blocks strokeWidth={2.1} /></span> : category.isVirtual ? <span className="category-node-icon" aria-hidden="true"><Ghost strokeWidth={2.1} /></span> : <span className="category-node-dot" aria-hidden="true" />}
                   <span className="category-node-copy">
                     <strong>{category.name}</strong>
                     <small>{formatItemCount(category.itemCount)}</small>
@@ -175,14 +175,14 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
               </button>
             ))}
           </div>
-          <div key={`items-${selectedCategory?.id ?? "overview"}`} className={`graph-nodes graph-nodes--items${items.length > 20 ? " graph-nodes--dense" : ""}`} data-state={itemNodesState} aria-hidden={itemNodesState === "hidden" || itemNodesState === "exiting"} aria-label={selectedCategory ? `Itens de ${selectedCategory.name}` : "Itens da categoria"}>
+          <div key={`items-${selectedCategory?.id ?? "overview"}`} className={`graph-nodes graph-nodes--items${items.length > 20 ? " graph-nodes--dense" : ""}`} data-state={itemNodesState} aria-hidden={itemNodesState === "hidden" || itemNodesState === "exiting"} aria-label={selectedCategory ? `Itens de ${selectedCategory.name}` : "Itens da coleção"}>
             {itemLayout.nodes.map(({ item, left, top }, index) => (
               <button
                 className={`item-node${selectedItemId === item.id ? " item-node--selected" : ""}`}
                 key={item.id}
                 type="button"
                 style={{ left: `${left}%`, top: `${top}%`, zIndex: items.length - index, "--graph-delay": `${Math.min(index, 7) * 12}ms`, "--graph-card-alpha": items.length > 20 ? (index % 4 === 1 ? ".72" : index % 4 === 2 ? ".84" : ".9") : ".94" } as CSSProperties}
-                aria-label={`${item.name}, ${item.category ? `categoria ${item.category.name}` : "categoria Vazio"}`}
+                aria-label={`${item.name}, ${item.category ? `coleção ${item.category.name}` : "coleção Vazio"}`}
                 aria-pressed={selectedItemId === item.id}
                 onClick={() => { setSelectedItemId(item.id); setDetailItem(item); }}
               >
@@ -197,7 +197,7 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
         </div>
       </div>
 
-      {isLoading && <p className="graph-status" role="status">{isCategoryView ? `Abrindo ${selectedCategory.name}...` : "Abrindo suas categorias..."}</p>}
+      {isLoading && <p className="graph-status" role="status">{isCategoryView ? `Abrindo ${selectedCategory.name}...` : "Abrindo suas coleções..."}</p>}
       {!isLoading && error && (
         <div className="graph-status graph-status--error" role="alert">
           <span>{error}</span>
@@ -212,8 +212,8 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
       )}
       {!isLoading && !error && isCategoryView && items.length === 0 && (
         <div className="graph-empty-state">
-          <p>Esta categoria ainda não tem referências</p>
-          <button className="button-action" type="button" onClick={onCategoryBack}>Voltar para categorias</button>
+          <p>Esta coleção ainda não tem referências</p>
+          <button className="button-action" type="button" onClick={onCategoryBack}>Voltar para coleções</button>
         </div>
       )}
       {detailItem && <ItemDetail item={detailItem} open={selectedItemId === detailItem.id} onClose={() => setSelectedItemId(null)} onExited={() => setDetailItem(null)} />}

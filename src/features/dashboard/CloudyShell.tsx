@@ -6,6 +6,8 @@ import { ItemDialog } from "../items/ItemDialog";
 import { ItemGraph } from "../items/ItemGraph";
 import { TagManagerDialog } from "../settings/TagManagerDialog";
 import { IntegrationDialog } from "../settings/IntegrationDialog";
+import { ShareDialog } from "../sharing/ShareDialog";
+import { SharedCategoriesDialog } from "../sharing/SharedCategoriesDialog";
 import { CommandPalette } from "../search/CommandPalette";
 import { ItemDetail } from "../items/ItemGraph";
 import { EMPTY_CATEGORY_COLOR } from "../items/category-colors";
@@ -66,6 +68,10 @@ export function CloudyShell() {
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [isIntegrationDialogOpen, setIsIntegrationDialogOpen] = useState(false);
   const [isIntegrationDialogClosing, setIsIntegrationDialogClosing] = useState(false);
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [isShareDialogClosing, setIsShareDialogClosing] = useState(false);
+  const [sharedShareId, setSharedShareId] = useState<string | null>(null);
+  const [isSharedDialogClosing, setIsSharedDialogClosing] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchItems, setSearchItems] = useState<CloudyItem[]>([]);
   const [searchItemsLoading, setSearchItemsLoading] = useState(false);
@@ -85,13 +91,20 @@ export function CloudyShell() {
   const searchItemsLoadedRef = useRef(false);
   const searchItemsPendingRequestId = useRef<number | null>(null);
   const isActionCloudHidden = useActionCloudIdle(isMenuOpen);
-  const isActionCloudSuppressed = isActionCloudHidden || isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isSearchOpen || searchDetailItem !== null;
-  const isModalOpen = isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isSearchOpen || searchDetailItem !== null;
+  const isActionCloudSuppressed = isActionCloudHidden || isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen || searchDetailItem !== null;
+  const isModalOpen = isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen || searchDetailItem !== null;
   const photoURL = user?.photoURL ?? profile?.picture;
   const email = user?.email ?? profile?.email;
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId) ?? null;
   const managedCategories = useMemo(() => categories.filter((category) => !category.isVirtual && !category.isSystem), [categories]);
   const visibleItems = selectedCategoryId ? categoryItems[selectedCategoryId] ?? [] : [];
+  const incomingShareParam = useRef<string | null>(new URLSearchParams(window.location.search).get("share"));
+
+  useEffect(() => {
+    if (categoriesLoading || !incomingShareParam.current) return;
+    setSharedShareId(incomingShareParam.current);
+    incomingShareParam.current = null;
+  }, [categoriesLoading]);
 
   const loadSearchItems = useCallback(async ({ background = false, force = false, preserveItem }: RefreshOptions = {}) => {
     if (!force && (searchItemsLoadedRef.current || searchItemsPendingRequestId.current !== null)) return;
@@ -148,7 +161,7 @@ export function CloudyShell() {
       if (requestId !== categoriesRequestId.current) return;
       setCategories(preserveItem ? updateCategorySummary(response.categories, preserveItem, toCategoryRecentItem(preserveItem)) : response.categories);
     } catch {
-      if (requestId === categoriesRequestId.current && !background) setCategoriesError("Não conseguimos abrir suas categorias agora.");
+      if (requestId === categoriesRequestId.current && !background) setCategoriesError("Não conseguimos abrir suas coleções agora.");
     } finally {
       if (requestId === categoriesRequestId.current) setCategoriesLoading(false);
     }
@@ -172,7 +185,7 @@ export function CloudyShell() {
       setCategoryItems((current) => ({ ...current, [categoryId]: preserveItem ? upsertItem(response.items, preserveItem) : sortUniqueItems(response.items) }));
     } catch {
       if (requestId !== categoryRequestId.current) return;
-      if (!background) setCategoryItemsError("Não conseguimos abrir os itens desta categoria.");
+      if (!background) setCategoryItemsError("Não conseguimos abrir os itens desta coleção.");
     } finally {
       if (requestId === categoryRequestId.current) setCategoryItemsLoading(false);
     }
@@ -220,6 +233,21 @@ export function CloudyShell() {
     void loadCategories();
   }, [categories, handleCategoryBack, loadCategories, selectedCategoryId]);
 
+  const clearShareUrl = useCallback(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("share");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  }, []);
+
+  const handleSharedCategoriesImported = useCallback((importedCategories: CategorySummary[]) => {
+    setCategories((current) => sortCategories([...current.filter((category) => !importedCategories.some((imported) => imported.id === category.id)), ...importedCategories]));
+    setCategoryItems({});
+    showSavedMessage(setSavedMessage, `${importedCategories.length} ${importedCategories.length === 1 ? "coleção adicionada" : "coleções adicionadas"} à sua nuvem.`);
+    clearShareUrl();
+    void loadCategories({ background: true });
+    if (searchItemsLoadedRef.current) void loadSearchItems({ background: true, force: true });
+  }, [clearShareUrl, loadCategories, loadSearchItems]);
+
   const retry = selectedCategoryId ? () => void loadCategoryItems(selectedCategoryId) : () => void loadCategories();
   const retrySearch = () => { searchItemsLoadedRef.current = false; void loadSearchItems(); };
 
@@ -244,12 +272,14 @@ export function CloudyShell() {
         </ItemGraph>
       </section>
       <aside className={`action-cloud-dock${isActionCloudSuppressed ? " action-cloud-dock--hidden" : ""}`} aria-label="Ações do Cloudy" aria-hidden={isActionCloudSuppressed}>
-        <CloudActionCloud email={email} name={profile?.name} onMenuOpenChange={setIsMenuOpen} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} onAddLink={() => setIsItemDialogOpen(true)} onSearch={openSearch} onTagsOpen={() => setIsTagManagerOpen(true)} onIntegrationsOpen={() => setIsIntegrationDialogOpen(true)} />
+        <CloudActionCloud email={email} name={profile?.name} onMenuOpenChange={setIsMenuOpen} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} onAddLink={() => setIsItemDialogOpen(true)} onSearch={openSearch} onTagsOpen={() => setIsTagManagerOpen(true)} onIntegrationsOpen={() => setIsIntegrationDialogOpen(true)} onShareOpen={() => setIsShareDialogOpen(true)} />
       </aside>
       {savedMessage && <p className="workspace-toast" role="status">{savedMessage}</p>}
       <ItemDialog open={isItemDialogOpen} categoryOptions={managedCategories} onClose={() => setIsItemDialogOpen(false)} onCreated={handleItemCreated} onClosingChange={setIsItemDialogClosing} />
       <TagManagerDialog open={isTagManagerOpen} categories={managedCategories} onClose={() => setIsTagManagerOpen(false)} onCategoriesChange={handleCategoriesChange} />
       <IntegrationDialog open={isIntegrationDialogOpen} onClose={() => setIsIntegrationDialogOpen(false)} onClosingChange={setIsIntegrationDialogClosing} />
+      <ShareDialog open={isShareDialogOpen} categories={managedCategories} onClose={() => setIsShareDialogOpen(false)} onClosingChange={setIsShareDialogClosing} />
+      <SharedCategoriesDialog open={sharedShareId !== null} shareId={sharedShareId} currentCategoryCount={managedCategories.length} onClose={() => { setSharedShareId(null); clearShareUrl(); }} onImported={handleSharedCategoriesImported} onClosingChange={setIsSharedDialogClosing} />
       <CommandPalette open={isSearchOpen} items={searchItems} isLoading={searchItemsLoading} error={searchItemsError} onClose={closeSearch} onRetry={retrySearch} onSelect={(item) => { closeSearch(); setSearchDetailItem(item); }} />
       {searchDetailItem && <ItemDetail item={searchDetailItem} open onClose={() => setSearchDetailItem(null)} onExited={() => setSearchDetailItem(null)} />}
     </main>
@@ -309,7 +339,7 @@ function sortCategories(categories: CategorySummary[]): CategorySummary[] {
   return [...categories].sort((first, second) => first.name.localeCompare(second.name, "pt-BR"));
 }
 
-function showSavedMessage(setSavedMessage: (message: string | null) => void) {
-  setSavedMessage("Referência salva na sua nuvem.");
+function showSavedMessage(setSavedMessage: (message: string | null) => void, message = "Referência salva na sua nuvem.") {
+  setSavedMessage(message);
   window.setTimeout(() => setSavedMessage(null), 2600);
 }

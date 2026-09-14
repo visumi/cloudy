@@ -30,7 +30,6 @@ describe("ItemDialog", () => {
   it("atualiza a prévia do card conforme as informações são preenchidas", () => {
     render(<ItemDialog open categoryOptions={[{ id: "category-1", name: "Inspirações", color: "#A78BFA" }]} onClose={vi.fn()} onCreated={vi.fn()} />);
 
-    expect(screen.getByText("Nova referência")).toBeInTheDocument();
     expect(document.querySelector(".modal-heading .modal-heading-icon")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Criar item" })).toBeInTheDocument();
     expect(screen.getByText("Preencha os dados abaixo")).toBeInTheDocument();
@@ -40,7 +39,7 @@ describe("ItemDialog", () => {
     expect(screen.getByText("0/2048", { selector: ".field-character-count" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Vazio" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("Vazio", { selector: ".item-live-preview-category > span:last-child" })).toBeInTheDocument();
-    expect(screen.queryByLabelText("Categoria")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Coleção")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Meu card" } });
     fireEvent.change(screen.getByLabelText(/Link/), { target: { value: "https://example.com" } });
@@ -55,7 +54,7 @@ describe("ItemDialog", () => {
     expect(screen.getByLabelText("Observação (opcional)")).toHaveAttribute("maxLength", "120");
   });
 
-  it("permite salvar um item sem tag", async () => {
+  it("permite salvar um item sem coleção", async () => {
     const onCreated = vi.fn();
     mockedApiRequest.mockResolvedValueOnce({ ...createdItem, category: null });
     render(<ItemDialog open categoryOptions={[{ id: "category-1", name: "Ideias", color: "#A78BFA" }]} onClose={vi.fn()} onCreated={onCreated} />);
@@ -130,12 +129,12 @@ describe("ItemDialog", () => {
     expect(screen.getByRole("dialog")).toHaveStyle({ transform: "translateY(120px)" });
   });
 
-  it("seleciona uma categoria existente sem exibir editor ou paleta de cores", () => {
+  it("seleciona uma coleção existente sem exibir editor ou paleta de cores", () => {
     render(<ItemDialog open categoryOptions={[{ id: "category-1", name: "Ideias", color: "#A78BFA" }]} onClose={vi.fn()} onCreated={vi.fn()} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Ideias" }));
     expect(screen.getByText("Ideias", { selector: ".item-live-preview-category > span:last-child" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Nova tag" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("group", { name: "Escolha a cor da categoria" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Nova coleção" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Escolha a cor da coleção" })).not.toBeInTheDocument();
   });
 });

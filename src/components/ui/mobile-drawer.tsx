@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type CSSProperties, type PointerEvent, typ
 const CLOSE_DISTANCE = 96;
 const CLOSE_VELOCITY = 0.65;
 const DRAG_START_DISTANCE = 6;
-const INTERACTIVE_SELECTOR = "button, a, input, textarea, select, [contenteditable=\"true\"], [role=\"button\"]";
+const INTERACTIVE_SELECTOR = "button, a, input, textarea, select, label, [contenteditable=\"true\"], [role=\"button\"]";
 
 export interface MobileDrawerGesture {
   handleProps: {
@@ -29,7 +29,7 @@ export function useMobileDrawerGesture(onClose: () => void): MobileDrawerGesture
   };
 
   const onPointerDown: PointerEventHandler<HTMLElement> = (event) => {
-    if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
     if (event.target instanceof Element && event.target.closest(INTERACTIVE_SELECTOR)) return;
     startRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, time: performance.now() };
     event.currentTarget.setPointerCapture?.(event.pointerId);

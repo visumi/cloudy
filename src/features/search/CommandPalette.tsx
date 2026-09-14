@@ -137,7 +137,7 @@ export function CommandPalette({ open, items, isLoading, error, onClose, onRetry
           <div className="modal-heading-icon command-palette-heading-icon" aria-hidden="true"><Search strokeWidth={2.1} /></div>
           <div className="modal-heading-copy">
             <h2 id="command-palette-title">Encontrar na nuvem</h2>
-            <p id="command-palette-description">Pesquise por título, categoria ou anotação.</p>
+            <p id="command-palette-description">Pesquise por título, coleção ou anotação.</p>
           </div>
           <button className="command-palette-close" type="button" onClick={requestClose} aria-label="Fechar busca" title="Fechar busca"><X aria-hidden="true" /></button>
         </div>
@@ -193,7 +193,7 @@ export function CommandPalette({ open, items, isLoading, error, onClose, onRetry
               </div>
             </>
           )}
-          {!isLoading && !error && results.length === 0 && <div className="command-empty"><span className="command-empty-mark" aria-hidden="true"><Search /></span><strong>{hasQuery ? "Nada apareceu por aqui" : "Sua nuvem ainda está vazia"}</strong><p>{hasQuery ? "Tente outro título, categoria ou termo da anotação." : "Salve uma referência e ela aparecerá aqui."}</p></div>}
+          {!isLoading && !error && results.length === 0 && <div className="command-empty"><span className="command-empty-mark" aria-hidden="true"><Search /></span><strong>{hasQuery ? "Nada apareceu por aqui" : "Sua nuvem ainda está vazia"}</strong><p>{hasQuery ? "Tente outro título, coleção ou termo da anotação." : "Salve uma referência e ela aparecerá aqui."}</p></div>}
         </div>
       </section>
     </div>

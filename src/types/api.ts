@@ -56,3 +56,24 @@ export interface CloudyItem {
 export interface ItemsResponse {
   items: CloudyItem[];
 }
+
+export interface SharedCategorySummary {
+  id: string;
+  name: string;
+  color: string;
+  itemCount: number;
+}
+
+export interface ShareSnapshot {
+  id: string;
+  createdAt: string;
+  categories: SharedCategorySummary[];
+}
+
+export interface CreateShareResponse {
+  shareId: string;
+}
+
+export interface ImportShareResponse {
+  categories: CategorySummary[];
+}

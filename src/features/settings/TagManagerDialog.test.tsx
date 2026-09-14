@@ -14,35 +14,45 @@ const categories: CategorySummary[] = [{ id: "category-1", name: "Ideias", color
 beforeEach(() => mockedApiRequest.mockReset());
 
 describe("TagManagerDialog", () => {
-  it("cria uma tag usando o nome, a cor e a prévia", async () => {
+  it("cria uma coleção usando o nome, a cor e a prévia", async () => {
     const onCategoriesChange = vi.fn();
     mockedApiRequest.mockResolvedValueOnce({ id: "category-2", name: "Inspirações", color: "#FB7185", itemCount: 0 });
     render(<TagManagerDialog open categories={categories} onClose={vi.fn()} onCategoriesChange={onCategoriesChange} />);
 
     expect(screen.getByText("1/15")).toBeInTheDocument();
-    expect(screen.getByLabelText("Nome da tag")).toHaveAttribute("maxLength", "12");
-    fireEvent.change(screen.getByLabelText("Nome da tag"), { target: { value: "Inspirações" } });
+    expect(screen.getByLabelText("Nome da coleção")).toHaveAttribute("maxLength", "12");
+    expect(screen.getByRole("button", { name: "Criar coleção" }).querySelector("svg")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Nome da coleção"), { target: { value: "Inspirações" } });
     fireEvent.click(screen.getByRole("button", { name: "Rosa" }));
-    expect(screen.getByLabelText("Prévia da tag Inspirações")).toBeInTheDocument();
+    expect(screen.getByLabelText("Prévia da coleção Inspirações")).toBeInTheDocument();
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
 
     await waitFor(() => expect(onCategoriesChange).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ name: "Inspirações", color: "#FB7185" })])));
     expect(mockedApiRequest).toHaveBeenCalledWith("/categories", expect.objectContaining({ method: "POST" }));
   });
 
-  it("edita e exclui uma tag sem itens", async () => {
+  it("edita e exclui uma coleção sem itens", async () => {
     const onCategoriesChange = vi.fn();
     mockedApiRequest.mockResolvedValueOnce({ id: "category-1", name: "Projetos", color: "#A78BFA", itemCount: 0 });
     render(<TagManagerDialog open categories={categories} onClose={vi.fn()} onCategoriesChange={onCategoriesChange} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Editar tag Ideias" }));
-    fireEvent.change(screen.getByLabelText("Nome da tag"), { target: { value: "Projetos" } });
+    fireEvent.click(screen.getByRole("button", { name: "Editar coleção Ideias" }));
+    fireEvent.change(screen.getByLabelText("Nome da coleção"), { target: { value: "Projetos" } });
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
     await waitFor(() => expect(mockedApiRequest).toHaveBeenCalledWith("/categories/category-1", expect.objectContaining({ method: "PATCH" })));
 
     mockedApiRequest.mockResolvedValueOnce({ id: "category-1" });
-    fireEvent.click(screen.getByRole("button", { name: "Excluir tag Ideias" }));
+    fireEvent.click(screen.getByRole("button", { name: "Excluir coleção Ideias" }));
     await waitFor(() => expect(mockedApiRequest).toHaveBeenCalledWith("/categories/category-1", expect.objectContaining({ method: "DELETE" })));
+  });
+
+  it("desabilita a exclusão de coleções com itens", () => {
+    const categoryWithItems: CategorySummary = { ...categories[0], itemCount: 1 };
+    render(<TagManagerDialog open categories={[categoryWithItems]} onClose={vi.fn()} onCategoriesChange={vi.fn()} />);
+
+    const deleteButton = screen.getByRole("button", { name: "Coleção Ideias tem itens" });
+    expect(deleteButton).toBeDisabled();
+    expect(deleteButton).toHaveAttribute("title", "Remova os itens antes de excluir");
   });
 
   it("mantém o shell enxuto e fecha com Escape", () => {

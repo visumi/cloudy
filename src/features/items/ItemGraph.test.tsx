@@ -47,28 +47,28 @@ function renderGraph(overrides: Partial<React.ComponentProps<typeof ItemGraph>> 
 }
 
 describe("ItemGraph", () => {
-  it("renderiza somente categorias e até cinco previews na visão inicial", () => {
+  it("renderiza somente coleções e até cinco previews na visão inicial", () => {
     renderGraph();
 
-    expect(screen.getByRole("button", { name: "Categoria Ideias, 2 itens" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Coleção Ideias, 2 itens" })).toBeInTheDocument();
     expect(document.querySelectorAll(".category-node-preview")).toHaveLength(2);
     expect(document.querySelectorAll(".item-node")).toHaveLength(0);
   });
 
-  it("solicita a categoria ao clicar no card", async () => {
+  it("solicita a coleção ao clicar no card", async () => {
     const user = userEvent.setup();
     const onCategorySelect = vi.fn();
     renderGraph({ onCategorySelect });
 
-    await user.click(screen.getByRole("button", { name: "Categoria Ideias, 2 itens" }));
+    await user.click(screen.getByRole("button", { name: "Coleção Ideias, 2 itens" }));
     expect(onCategorySelect).toHaveBeenCalledWith("category-1");
   });
 
-  it("exibe o retorno para categorias como uma seta compacta", () => {
+  it("exibe o retorno para coleções como uma seta compacta", () => {
     renderGraph({ selectedCategory: category, items: [item] });
 
-    const backButton = screen.getByRole("button", { name: "Voltar para todas as categorias" });
-    expect(backButton).toHaveAttribute("title", "Voltar para todas as categorias");
+    const backButton = screen.getByRole("button", { name: "Voltar para todas as coleções" });
+    expect(backButton).toHaveAttribute("title", "Voltar para todas as coleções");
     expect(backButton.querySelector("svg")).toBeInTheDocument();
     expect(backButton.querySelector("span")).not.toBeInTheDocument();
   });
@@ -77,11 +77,11 @@ describe("ItemGraph", () => {
     const user = userEvent.setup();
     renderGraph({ categories: [category], selectedCategory: category, items: [item] });
 
-    expect(screen.queryByRole("button", { name: "Categoria Ideias, 2 itens" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Coleção Ideias, 2 itens" })).not.toBeInTheDocument();
     expect(document.querySelector(".graph-cloud")).toBeInTheDocument();
     expect(document.querySelectorAll(".graph-connection-layer--items line")).toHaveLength(1);
     expect(document.querySelector(".graph-connection-layer--items .graph-connection--category")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Página de inspiração, categoria Ideias" }));
+    await user.click(screen.getByRole("button", { name: "Página de inspiração, coleção Ideias" }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Salvo em: 10/09/2026")).toBeInTheDocument();
     expect(screen.getByText("Uma referência para revisar depois.", { selector: ".item-detail-observation-text" })).toBeInTheDocument();
@@ -92,27 +92,51 @@ describe("ItemGraph", () => {
     await waitFor(() => expect(copyButton).toHaveAccessibleName("Link copiado"));
   });
 
-  it("exibe a categoria Vazio em cinza", async () => {
+  it("exibe a coleção Vazio em cinza", async () => {
     const user = userEvent.setup();
     const emptyCategory: CategorySummary = { id: "__untagged__", name: "Vazio", color: "#CBD5E1", itemCount: 1, recentItems: [], isVirtual: true };
     renderGraph({ categories: [emptyCategory], selectedCategory: emptyCategory, items: [{ ...item, category: null }] });
 
-    expect(screen.getByRole("button", { name: "Página de inspiração, categoria Vazio" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Página de inspiração, categoria Vazio" }));
+    expect(screen.getByRole("button", { name: "Página de inspiração, coleção Vazio" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Página de inspiração, coleção Vazio" }));
     expect(await screen.findByText("Vazio", { selector: ".item-detail-category > span:last-child" })).toBeInTheDocument();
   });
 
-  it("renderiza Integrações com o ícone do menu e abre sua categoria", async () => {
+  it("renderiza Integrações com o ícone do menu e abre sua coleção", async () => {
     const user = userEvent.setup();
     const integrations: CategorySummary = { id: INTEGRATIONS_CATEGORY_ID, name: "Integrações", color: "#38BDF8", itemCount: 2, recentItems: [], isSystem: true };
     const onCategorySelect = vi.fn();
     renderGraph({ categories: [category, integrations], onCategorySelect });
 
-    const node = screen.getByRole("button", { name: "Categoria Integrações, 2 itens" });
+    const node = screen.getByRole("button", { name: "Coleção Integrações, 2 itens" });
     expect(node).toHaveClass("category-node--system");
     expect(node.querySelector("svg")).toBeInTheDocument();
     await user.click(node);
     expect(onCategorySelect).toHaveBeenCalledWith(INTEGRATIONS_CATEGORY_ID);
+  });
+
+  it("renderiza Vazio com o ícone Ghost", () => {
+    const emptyCategory: CategorySummary = { id: "__untagged__", name: "Vazio", color: "#CBD5E1", itemCount: 1, recentItems: [], isVirtual: true };
+    renderGraph({ categories: [emptyCategory] });
+    const node = screen.getByRole("button", { name: "Coleção Vazio, 1 item" });
+    expect(node).toHaveClass("category-node--virtual");
+    expect(node.querySelector(".category-node-icon")).toBeInTheDocument();
+    expect(node.querySelector("svg")).toBeInTheDocument();
+  });
+
+  it("renderiza a coleção Vazio com 100 itens de massa", () => {
+    const emptyCategory: CategorySummary = { id: "__untagged__", name: "Vazio", color: "#CBD5E1", itemCount: 100, recentItems: [], isVirtual: true };
+    const emptyItems = Array.from({ length: 100 }, (_, index) => ({
+      ...item,
+      id: `empty-${index}`,
+      name: `Item sem coleção ${index + 1}`,
+      category: null,
+      createdAt: `2026-09-${String((index % 9) + 1).padStart(2, "0")}T00:00:00Z`
+    }));
+
+    renderGraph({ categories: [emptyCategory], selectedCategory: emptyCategory, items: emptyItems });
+
+    expect(document.querySelectorAll(".item-node")).toHaveLength(100);
   });
 
   it("mantém o zoom reduzido para exibir todos os itens", () => {

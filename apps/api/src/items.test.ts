@@ -80,14 +80,26 @@ describe("category management", () => {
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ sql: expect.stringContaining("UPDATE categories") }));
   });
 
-  it("exclui uma tag mesmo quando ela possui itens", async () => {
+  it("exclui uma coleção vazia", async () => {
     const execute = vi.fn(async (statement: { sql: string }) => {
       if (statement.sql.includes("SELECT id FROM categories")) return { rows: [{ id: "category-1" }] };
+      if (statement.sql.includes("SELECT COUNT(*) AS item_count FROM items WHERE user_id = ? AND category_id = ?")) return { rows: [{ item_count: 0 }] };
       return { rows: [] };
     });
 
     await expect(deleteCategory({ execute } as Client, "user-1", "category-1")).resolves.toEqual({ id: "category-1" });
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ sql: expect.stringContaining("DELETE FROM categories") }));
+  });
+
+  it("bloqueia a exclusão de uma coleção com itens", async () => {
+    const execute = vi.fn(async (statement: { sql: string }) => {
+      if (statement.sql.includes("SELECT id FROM categories")) return { rows: [{ id: "category-1" }] };
+      if (statement.sql.includes("SELECT COUNT(*) AS item_count FROM items WHERE user_id = ? AND category_id = ?")) return { rows: [{ item_count: 1 }] };
+      return { rows: [] };
+    });
+
+    await expect(deleteCategory({ execute } as Client, "user-1", "category-1")).rejects.toThrowError("category_has_items");
+    expect(execute).not.toHaveBeenCalledWith(expect.objectContaining({ sql: expect.stringContaining("DELETE FROM categories") }));
   });
 
   it("lista contagens, cinco previews recentes e a categoria virtual Vazio", async () => {
@@ -99,13 +111,14 @@ describe("category management", () => {
           { id: "empty-1", name: "Sem categoria", image_url: null, favicon_url: null, created_at: "2026-09-10", category_id: null }
         ]
       };
-      if (statement.sql.includes("SELECT COUNT(*) AS item_count FROM items WHERE user_id")) return { rows: [{ item_count: 1 }] };
+      if (statement.sql.includes("category_id IS NULL AND system_category IS NULL")) return { rows: [{ item_count: 100 }] };
+      if (statement.sql.includes("system_category = 'integrations'")) return { rows: [{ item_count: 1 }] };
       return { rows: [] };
     });
 
     await expect(listCategories({ execute } as Client, "user-1")).resolves.toEqual([
       expect.objectContaining({ id: "category-1", itemCount: 6, recentItems: expect.arrayContaining([expect.objectContaining({ id: "recent-0" })]) }),
-      expect.objectContaining({ id: UNTAGGED_CATEGORY_ID, name: "Vazio", itemCount: 1, isVirtual: true, recentItems: [expect.objectContaining({ id: "empty-1" })] }),
+      expect.objectContaining({ id: UNTAGGED_CATEGORY_ID, name: "Vazio", itemCount: 100, isVirtual: true, recentItems: [expect.objectContaining({ id: "empty-1" })] }),
       expect.objectContaining({ id: INTEGRATIONS_CATEGORY_ID, name: "Integrações", itemCount: 1, isSystem: true })
     ]);
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ sql: expect.stringContaining("category_id IS NULL AND system_category IS NULL") }));
@@ -188,6 +201,7 @@ describe("link preview", () => {
 
   it("salva um item sem tag sem criar categoria", async () => {
     const execute = vi.fn(async (statement: { sql: string }) => {
+      if (statement.sql.includes("category_id IS NULL AND system_category IS NULL")) return { rows: [{ item_count: 0 }] };
       if (statement.sql.includes("SELECT i.id, i.name")) return { rows: [{ id: "item-2", name: "Sem tag", url: null, image_url: null, favicon_url: null, observation: null, created_at: "2026-09-11", updated_at: "2026-09-11", category_id: null, category_name: null, category_color: null }] };
       return { rows: [] };
     });
@@ -197,6 +211,15 @@ describe("link preview", () => {
     expect(created.category).toBeNull();
     expect(execute).not.toHaveBeenCalledWith(expect.objectContaining({ sql: expect.stringContaining("INSERT INTO categories") }));
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ sql: expect.stringContaining("INSERT INTO items") }));
+  });
+
+  it("bloqueia o centésimo primeiro item da coleção Vazio", async () => {
+    const execute = vi.fn(async (statement: { sql: string }) => {
+      if (statement.sql.includes("category_id IS NULL AND system_category IS NULL")) return { rows: [{ item_count: 100 }] };
+      return { rows: [] };
+    });
+
+    await expect(createItem({ execute } as Client, "user-1", { name: "Nova referência" })).rejects.toThrowError("category_item_limit_reached");
   });
 
   it("salva a integração no agrupador reservado e evita duplicatas", async () => {
@@ -249,10 +272,10 @@ describe("link preview", () => {
     await expect(createItem({ execute } as Client, "user-1", { name: "Nova referência", categoryName: "Categoria 16" })).rejects.toThrowError("category_limit_reached");
   });
 
-  it("bloqueia o septuagésimo primeiro item da categoria", async () => {
+  it("bloqueia o centésimo primeiro item da coleção", async () => {
     const execute = vi.fn(async (statement: { sql: string }) => {
       if (statement.sql.includes("SELECT id, name, color FROM categories")) return { rows: [{ id: "category-1", name: "Ideias", color: "#A78BFA" }] };
-      if (statement.sql.includes("SELECT COUNT(*) AS item_count")) return { rows: [{ item_count: 70 }] };
+      if (statement.sql.includes("SELECT COUNT(*) AS item_count")) return { rows: [{ item_count: 100 }] };
       return { rows: [] };
     });
 

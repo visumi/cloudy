@@ -25,6 +25,8 @@ describe("IntegrationDialog", () => {
     render(<IntegrationDialog open onClose={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Gerar token" })).toBeInTheDocument());
+    expect(screen.queryByText("Nenhum token configurado.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Gerar token" }).querySelector("svg")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Gerar token" }));
 
     expect(await screen.findByText("cly_cap_abc")).toBeInTheDocument();

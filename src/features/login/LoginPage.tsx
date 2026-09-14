@@ -1,9 +1,20 @@
+import { useState } from "react";
+import { LoaderCircle } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import CRTWarp from "../../components/CRTWarp";
 import { useAuth } from "../../hooks/use-auth";
 
 export function LoginPage() {
   const { authError, signIn } = useAuth();
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const handleSignIn = async () => {
+    setIsSigningIn(true);
+    try {
+      await signIn();
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
   return (
     <main className="auth-page">
       <div className="auth-background" aria-hidden="true">
@@ -32,9 +43,9 @@ export function LoginPage() {
       <section className="auth-card" aria-label="Entrar no Cloudy">
         <img className="cloud-mark" src="/cloudy-logo.png" alt="" aria-hidden="true" />
         <p className="logo-word">cloudy</p>
-        <Button onClick={() => void signIn()} className="google-button">
-          <GoogleIcon />
-          Entrar com Google
+        <Button onClick={() => void handleSignIn()} className="google-button" disabled={isSigningIn} aria-busy={isSigningIn}>
+          {isSigningIn ? <LoaderCircle className="button-loading-spinner" aria-hidden="true" /> : <GoogleIcon />}
+          <span>{isSigningIn ? "Entrando…" : "Entrar com Google"}</span>
         </Button>
         {authError && <p className="status-message" role="status">{authError}</p>}
         <p className="login-tagline">Guarde o que inspira você.</p>

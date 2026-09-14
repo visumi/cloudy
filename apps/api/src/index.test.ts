@@ -115,4 +115,29 @@ describe("API base", () => {
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ error: "forbidden" });
   });
+
+  it("cria e lê um compartilhamento pela sessão autenticada", async () => {
+    const createShare = vi.fn(async () => ({ shareId: "share-1" }));
+    const getShare = vi.fn(async () => ({ id: "share-1", createdAt: "now", categories: [] }));
+    const dependencies: RequestDependencies = { authenticate: vi.fn(async () => identity), createDatabaseClient: vi.fn(() => ({} as never)), resolveAuthenticatedUser: vi.fn(async () => profile), upsertUser: vi.fn(), listItems: vi.fn(), createItem: vi.fn(), previewItem: vi.fn(), createShare, getShare };
+    const createResponse = await handleRequest(new Request("https://cloudy-api.isumi.com.br/shares", { method: "POST", headers: { Authorization: "Bearer test", "Content-Type": "application/json" }, body: JSON.stringify({ categoryIds: ["category-1"] }) }), env, dependencies);
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.headers.get("Cache-Control")).toBe("no-store");
+    await expect(createResponse.json()).resolves.toEqual({ shareId: "share-1" });
+    expect(createShare).toHaveBeenCalledWith(expect.anything(), "uid-1", { categoryIds: ["category-1"] });
+
+    const readResponse = await handleRequest(new Request("https://cloudy-api.isumi.com.br/shares/share-1", { headers: { Authorization: "Bearer test" } }), env, dependencies);
+    expect(readResponse.status).toBe(200);
+    await expect(readResponse.json()).resolves.toEqual({ id: "share-1", createdAt: "now", categories: [] });
+    expect(getShare).toHaveBeenCalledWith(expect.anything(), "share-1");
+  });
+
+  it("importa categorias compartilhadas pela sessão autenticada", async () => {
+    const importShare = vi.fn(async () => ({ categories: [{ id: "category-copy", name: "Ideias", color: "#A78BFA", itemCount: 1, recentItems: [] }] }));
+    const dependencies: RequestDependencies = { authenticate: vi.fn(async () => identity), createDatabaseClient: vi.fn(() => ({} as never)), resolveAuthenticatedUser: vi.fn(async () => profile), upsertUser: vi.fn(), listItems: vi.fn(), createItem: vi.fn(), previewItem: vi.fn(), importShare };
+    const response = await handleRequest(new Request("https://cloudy-api.isumi.com.br/shares/share-1/imports", { method: "POST", headers: { Authorization: "Bearer test", "Content-Type": "application/json" }, body: JSON.stringify({ shareCategoryIds: ["shared-category-1"] }) }), env, dependencies);
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({ categories: [{ id: "category-copy", name: "Ideias", color: "#A78BFA", itemCount: 1, recentItems: [] }] });
+    expect(importShare).toHaveBeenCalledWith(expect.anything(), "uid-1", "share-1", { shareCategoryIds: ["shared-category-1"] });
+  });
 });

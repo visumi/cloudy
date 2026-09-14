@@ -38,6 +38,14 @@ describe("CloudActionCloud", () => {
     expect(onSearch).toHaveBeenCalledOnce();
   });
 
+  it("abre diretamente o compartilhamento", () => {
+    const onShareOpen = vi.fn();
+    render(<CloudActionCloud onShareOpen={onShareOpen} />);
+    fireEvent.click(screen.getByRole("button", { name: "Compartilhar" }));
+    expect(onShareOpen).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
   it("mantém Integrações no menu para configurar o token", () => {
     const onIntegrationsOpen = vi.fn();
     render(<CloudActionCloud onIntegrationsOpen={onIntegrationsOpen} />);

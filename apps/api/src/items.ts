@@ -4,7 +4,7 @@ import { type DbRow, HttpError, readDbString } from "./shared";
 const PREVIEW_TIMEOUT_MS = 5000;
 const PREVIEW_BODY_LIMIT = 256 * 1024;
 const MAX_CATEGORIES_PER_USER = 15;
-const MAX_ITEMS_PER_CATEGORY = 70;
+export const MAX_ITEMS_PER_CATEGORY = 100;
 const MAX_ITEM_NAME_LENGTH = 24;
 const MAX_CATEGORY_NAME_LENGTH = 12;
 const MAX_ITEM_URL_LENGTH = 2048;
@@ -180,6 +180,12 @@ export async function deleteCategory(db: Client, userId: string, categoryId: str
   const row = result.rows[0] as DbRow | undefined;
   if (!row) throw new HttpError(404, "category_not_found");
 
+  const itemCount = await db.execute({
+    sql: "SELECT COUNT(*) AS item_count FROM items WHERE user_id = ? AND category_id = ?",
+    args: [userId, categoryId]
+  });
+  if (readOptionalDbCount(itemCount.rows[0], "item_count") > 0) throw new HttpError(400, "category_has_items");
+
   await db.execute({
     sql: "DELETE FROM categories WHERE id = ? AND user_id = ?",
     args: [categoryId, userId]
@@ -226,7 +232,7 @@ export async function listCategoryItems(db: Client, userId: string, categoryId: 
 export async function createItem(db: Client, userId: string, payload: unknown): Promise<ItemRecord> {
   const input = parseCreateItemInput(payload);
   const category = input.categoryName ? await findOrCreateCategory(db, userId, input.categoryName, input.categoryColor) : null;
-  if (category) await ensureCategoryItemCapacity(db, userId, category.id);
+  await ensureCategoryItemCapacity(db, userId, category?.id ?? null);
   const preview = input.url ? await resolveLinkPreview(input.url) : { title: null, imageUrl: null, faviconUrl: null };
   const itemId = crypto.randomUUID();
 
@@ -488,10 +494,13 @@ async function getCategory(db: Client, userId: string, categoryId: string): Prom
   return { ...category, recentItems: (await listRecentItemsForCategory(db, userId, categoryId)) };
 }
 
-async function ensureCategoryItemCapacity(db: Client, userId: string, categoryId: string): Promise<void> {
+async function ensureCategoryItemCapacity(db: Client, userId: string, categoryId: string | null): Promise<void> {
+  const isUntagged = categoryId === null;
   const itemCount = await db.execute({
-    sql: "SELECT COUNT(*) AS item_count FROM items WHERE user_id = ? AND category_id = ?",
-    args: [userId, categoryId]
+    sql: isUntagged
+      ? "SELECT COUNT(*) AS item_count FROM items WHERE user_id = ? AND category_id IS NULL AND system_category IS NULL"
+      : "SELECT COUNT(*) AS item_count FROM items WHERE user_id = ? AND category_id = ?",
+    args: isUntagged ? [userId] : [userId, categoryId]
   });
   if (readDbCount(itemCount.rows[0], "item_count") >= MAX_ITEMS_PER_CATEGORY) {
     throw new HttpError(400, "category_item_limit_reached");

@@ -147,7 +147,7 @@ export function TagManagerDialog({ open, categories, onClose, onCategoriesChange
     event.preventDefault();
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setError("Dê um nome para sua tag.");
+      setError("Dê um nome para sua coleção.");
       nameInputRef.current?.focus();
       return;
     }
@@ -161,7 +161,7 @@ export function TagManagerDialog({ open, categories, onClose, onCategoriesChange
       });
       const nextCategories = sortCategories(editingId ? categories.map((current) => current.id === category.id ? category : current) : [...categories, category]);
       onCategoriesChange(nextCategories);
-      showSavedMessage(editingId ? "Tag atualizada." : "Tag criada na sua nuvem.");
+      showSavedMessage(editingId ? "Coleção atualizada." : "Coleção criada na sua nuvem.");
       resetEditor();
     } catch (submitError) {
       setError(formatTagError(submitError));
@@ -177,7 +177,7 @@ export function TagManagerDialog({ open, categories, onClose, onCategoriesChange
       await apiRequest<{ id: string }>(`/categories/${category.id}`, { method: "DELETE" });
       onCategoriesChange(categories.filter((current) => current.id !== category.id));
       if (editingId === category.id) resetEditor();
-      showSavedMessage("Tag removida.");
+      showSavedMessage("Coleção removida.");
     } catch (deleteError) {
       setError(formatTagError(deleteError));
     } finally {
@@ -187,7 +187,7 @@ export function TagManagerDialog({ open, categories, onClose, onCategoriesChange
 
   if (!shouldRender) return null;
 
-  const previewName = name.trim() || "Sua nova tag";
+  const previewName = name.trim() || "Sua nova coleção";
   const sortedCategories = sortCategories(categories);
 
   return createPortal(
@@ -206,10 +206,10 @@ export function TagManagerDialog({ open, categories, onClose, onCategoriesChange
         {...drawerGesture.panelProps}
       >
         <div className="mobile-drawer-handle" aria-hidden="true" {...drawerGesture.handleProps} />
-        <button className="modal-close tag-manager-close" type="button" aria-label="Fechar tags" onClick={requestClose}><X aria-hidden="true" /></button>
+        <button className="modal-close tag-manager-close" type="button" aria-label="Fechar coleções" onClick={requestClose}><X aria-hidden="true" /></button>
 
         <div className="tag-manager-hero">
-          <div className="tag-manager-preview" aria-label={`Prévia da tag ${previewName}`}>
+          <div className="tag-manager-preview" aria-label={`Prévia da coleção ${previewName}`}>
             <span className="tag-manager-preview-cloud tag-manager-preview-cloud--one" aria-hidden="true" />
             <span className="tag-manager-preview-cloud tag-manager-preview-cloud--two" aria-hidden="true" />
             <span className="tag-manager-preview-ring" aria-hidden="true" />
@@ -220,14 +220,14 @@ export function TagManagerDialog({ open, categories, onClose, onCategoriesChange
           </div>
           <div className="tag-manager-heading modal-heading-copy">
             <span className="item-dialog-kicker">Organize sua nuvem</span>
-            <h2 id="tag-manager-title">Tags</h2>
+            <h2 id="tag-manager-title">Coleções</h2>
             <p>Dê um nome e uma cor para encontrar tudo de relance.</p>
           </div>
         </div>
 
         <form className="tag-manager-form" onSubmit={submit}>
           <div className="tag-manager-form-heading">
-            <label className="field-label" htmlFor="tag-name">Nome da tag</label>
+            <label className="field-label" htmlFor="tag-name">Nome da coleção</label>
             {editingId && <button className="tag-manager-cancel" type="button" onClick={resetEditor}>Cancelar</button>}
           </div>
           <div className="tag-manager-name-field field-with-character-count">
@@ -236,9 +236,9 @@ export function TagManagerDialog({ open, categories, onClose, onCategoriesChange
           </div>
 
           <div className="tag-manager-palette-heading">
-            <span className="field-label">Cor da tag</span>
+            <span className="field-label">Cor da coleção</span>
           </div>
-          <div className="tag-manager-palette" role="group" aria-label="Escolha uma cor para a tag">
+          <div className="tag-manager-palette" role="group" aria-label="Escolha uma cor para a coleção">
             {CATEGORY_COLOR_OPTIONS.map((option) => (
               <button
                 className={`tag-manager-color${color === option.value ? " tag-manager-color--selected" : ""}`}
@@ -254,21 +254,21 @@ export function TagManagerDialog({ open, categories, onClose, onCategoriesChange
             ))}
           </div>
 
-          {error && <p className="tag-manager-message tag-manager-message--error" role="alert">{error}<span className="item-required-marker" aria-hidden="true" /></p>}
+          {error && <p className="tag-manager-message tag-manager-message--error" role="alert">{error}</p>}
           {savedMessage && <p className="tag-manager-message tag-manager-message--success" role="status"><Check aria-hidden="true" />{savedMessage}</p>}
-          <button className="button-action tag-manager-submit" type="submit" disabled={isSaving}>
-            {isSaving ? <LoaderCircle aria-hidden="true" /> : editingId ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}
-            {isSaving ? "Salvando" : editingId ? "Salvar alterações" : "Criar tag"}
+          <button className="button-action tag-manager-submit" type="submit" disabled={isSaving} aria-busy={isSaving}>
+            {isSaving ? <LoaderCircle className="button-loading-spinner" aria-hidden="true" /> : editingId ? <Check aria-hidden="true" /> : null}
+            <span>{isSaving ? "Salvando…" : editingId ? "Salvar alterações" : "Criar coleção"}</span>
           </button>
         </form>
 
         <div className="tag-manager-list-heading">
           <div>
-            <h3>Tags salvas</h3>
+            <h3>Coleções salvas</h3>
           </div>
           <span className="tag-manager-count">{categories.length}/{MAX_CATEGORY_COUNT}</span>
         </div>
-        <div className="tag-manager-list" aria-label="Tags salvas">
+        <div className="tag-manager-list" aria-label="Coleções salvas">
           {sortedCategories.length === 0 ? (
             <div className="tag-manager-empty"><span className="tag-manager-empty-mark" aria-hidden="true"><Plus /></span><p>Sua paleta começa aqui.</p></div>
           ) : sortedCategories.map((category) => {
@@ -278,8 +278,8 @@ export function TagManagerDialog({ open, categories, onClose, onCategoriesChange
                 <span className="tag-manager-row-tag" style={getCategoryColorStyle(category.color)}><span aria-hidden="true" /><span>{category.name}</span></span>
                 <span className="tag-manager-row-count">{itemCount} {itemCount === 1 ? "item" : "itens"}</span>
                 <div className="tag-manager-row-actions">
-                  <button className="tag-manager-icon-button" type="button" aria-label={`Editar tag ${category.name}`} title={`Editar ${category.name}`} onClick={() => startEditing(category)}><Pencil aria-hidden="true" /></button>
-                  <button className="tag-manager-icon-button tag-manager-icon-button--delete" type="button" aria-label={`Excluir tag ${category.name}`} title={`Excluir ${category.name}`} disabled={deletingId === category.id} onClick={() => void removeCategory(category)}><Trash2 aria-hidden="true" /></button>
+                  <button className="tag-manager-icon-button" type="button" aria-label={`Editar coleção ${category.name}`} title={`Editar ${category.name}`} onClick={() => startEditing(category)}><Pencil aria-hidden="true" /></button>
+                  <button className="tag-manager-icon-button tag-manager-icon-button--delete" type="button" aria-label={deletingId === category.id ? "Excluindo coleção" : itemCount > 0 ? `Coleção ${category.name} tem itens` : `Excluir coleção ${category.name}`} title={itemCount > 0 ? "Remova os itens antes de excluir" : `Excluir ${category.name}`} disabled={deletingId === category.id || itemCount > 0} aria-busy={deletingId === category.id} onClick={() => void removeCategory(category)}>{deletingId === category.id ? <LoaderCircle className="button-loading-spinner" aria-hidden="true" /> : <Trash2 aria-hidden="true" />}</button>
                 </div>
               </div>
             );
@@ -296,13 +296,14 @@ function sortCategories(categories: CategorySummary[]) {
 }
 
 function formatTagError(error: unknown) {
-  if (!(error instanceof ApiError)) return "Não foi possível atualizar suas tags agora.";
+  if (!(error instanceof ApiError)) return "Não foi possível atualizar suas coleções agora.";
   const messages: Record<string, string> = {
-    category_limit_reached: `Você já tem ${MAX_CATEGORY_COUNT} tags. Remova uma para criar outra.`,
-    category_name_taken: "Você já tem uma tag com esse nome.",
-    invalid_category_name: "O nome da tag deve ter até 12 caracteres.",
+    category_limit_reached: `Você já tem ${MAX_CATEGORY_COUNT} coleções. Remova uma para criar outra.`,
+    category_name_taken: "Você já tem uma coleção com esse nome.",
+    invalid_category_name: "O nome da coleção deve ter até 12 caracteres.",
     invalid_category_color: "Escolha uma cor da paleta.",
-    category_not_found: "Essa tag não está mais disponível. Atualize a lista."
+    category_not_found: "Essa coleção não está mais disponível. Atualize a lista.",
+    category_has_items: "Remova os itens da coleção antes de excluí-la."
   };
-  return messages[error.code] || "Não foi possível atualizar suas tags agora.";
+  return messages[error.code] || "Não foi possível atualizar suas coleções agora.";
 }

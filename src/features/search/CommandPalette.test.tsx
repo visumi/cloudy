@@ -78,4 +78,17 @@ describe("CommandPalette", () => {
     expect(palette).not.toHaveAttribute("data-dragging", "true");
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it("não permite arrastar o drawer com o mouse no desktop", () => {
+    const onClose = vi.fn();
+    render(<CommandPalette open items={items} isLoading={false} error={null} onClose={onClose} onRetry={vi.fn()} onSelect={vi.fn()} />);
+    const palette = document.querySelector<HTMLElement>(".command-palette")!;
+
+    fireEvent.pointerDown(palette, { pointerId: 2, pointerType: "mouse", button: 0, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(palette, { pointerId: 2, pointerType: "mouse", clientX: 100, clientY: 220 });
+    fireEvent.pointerUp(palette, { pointerId: 2, pointerType: "mouse", clientX: 100, clientY: 220 });
+
+    expect(palette).not.toHaveAttribute("data-dragging", "true");
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

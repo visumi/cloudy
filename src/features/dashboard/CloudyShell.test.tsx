@@ -18,9 +18,9 @@ vi.mock("../items/ItemGraph", () => ({
   ItemGraph: ({ children, categories, items, onCategorySelect, onDetailOpenChange }: { children: ReactNode; categories?: Array<{ id: string; name: string; itemCount: number; recentItems: Array<{ name: string }> }>; items?: Array<{ id: string; name: string }>; onCategorySelect?: (id: string) => void; onDetailOpenChange?: (open: boolean) => void }) => (
     <div>
       {children}
-      <ul aria-label="Categorias no grafo">{categories?.map((category) => <li key={category.id}>{category.name}: {category.itemCount} {category.itemCount === 1 ? "item" : "itens"}; recentes: {category.recentItems.map((item) => item.name).join(", ")}</li>)}</ul>
+      <ul aria-label="Coleções no grafo">{categories?.map((category) => <li key={category.id}>{category.name}: {category.itemCount} {category.itemCount === 1 ? "item" : "itens"}; recentes: {category.recentItems.map((item) => item.name).join(", ")}</li>)}</ul>
       <ul aria-label="Itens no grafo">{items?.map((item) => <li key={item.id}>{item.name}</li>)}</ul>
-      {categories?.[0] && <button type="button" onClick={() => onCategorySelect?.(categories[0].id)}>Abrir categoria {categories[0].name}</button>}
+      {categories?.[0] && <button type="button" onClick={() => onCategorySelect?.(categories[0].id)}>Abrir coleção {categories[0].name}</button>}
       <button type="button" onClick={() => onDetailOpenChange?.(true)}>Abrir detalhe</button>
       <button type="button" onClick={() => onDetailOpenChange?.(false)}>Fechar detalhe</button>
     </div>
@@ -29,7 +29,7 @@ vi.mock("../items/ItemGraph", () => ({
 vi.mock("../items/ItemDialog", () => ({
   ItemDialog: ({ open, onClose, onCreated, onClosingChange }: { open: boolean; onClose: () => void; onCreated: (item: { id: string; name: string; url: string; imageUrl: string; faviconUrl: string; observation: null; category: { id: string; name: string; color: string } | null; createdAt: string; updatedAt: string }) => void; onClosingChange?: (closing: boolean) => void }) => open ? <div role="dialog">
     <button type="button" onClick={() => { onCreated({ id: "created-item", name: "Item recém-criado", url: "https://example.com/new", imageUrl: "https://example.com/new.jpg", faviconUrl: "https://example.com/favicon.ico", observation: null, category: { id: "category-1", name: "Ideias", color: "#A78BFA" }, createdAt: "2026-09-13T18:00:00.000Z", updatedAt: "2026-09-13T18:00:00.000Z" }); onClose(); }}>Salvar item de teste</button>
-    <button type="button" onClick={() => { onCreated({ id: "untagged-item", name: "Item sem tag", url: "https://example.com/empty", imageUrl: "https://example.com/empty.jpg", faviconUrl: "https://example.com/favicon.ico", observation: null, category: null, createdAt: "2026-09-13T19:00:00.000Z", updatedAt: "2026-09-13T19:00:00.000Z" }); onClose(); }}>Salvar item sem tag</button>
+    <button type="button" onClick={() => { onCreated({ id: "untagged-item", name: "Item sem coleção", url: "https://example.com/empty", imageUrl: "https://example.com/empty.jpg", faviconUrl: "https://example.com/favicon.ico", observation: null, category: null, createdAt: "2026-09-13T19:00:00.000Z", updatedAt: "2026-09-13T19:00:00.000Z" }); onClose(); }}>Salvar item sem coleção</button>
     <button type="button" onClick={() => { onClosingChange?.(true); onClose(); window.setTimeout(() => onClosingChange?.(false), 220); }}>Fechar</button>
   </div> : null
 }));
@@ -66,14 +66,14 @@ describe("CloudyShell", () => {
     });
   });
 
-  it("carrega itens somente depois de abrir uma categoria", async () => {
+  it("carrega itens somente depois de abrir uma coleção", async () => {
     mockedApiRequest.mockResolvedValueOnce({ categories: [{ id: "category-1", name: "Ideias", color: "#A78BFA", itemCount: 1, recentItems: [] }] });
     mockedApiRequest.mockResolvedValueOnce({ items: [{ id: "item-1" }] });
     render(<CloudyShell />);
 
     await waitFor(() => expect(mockedApiRequest).toHaveBeenCalledWith("/categories"));
     expect(mockedApiRequest).not.toHaveBeenCalledWith("/items");
-    fireEvent.click(screen.getByRole("button", { name: "Abrir categoria Ideias" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abrir coleção Ideias" }));
     await waitFor(() => expect(mockedApiRequest).toHaveBeenCalledWith("/categories/category-1/items"));
   });
 
@@ -90,7 +90,7 @@ describe("CloudyShell", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Referência salva na sua nuvem.");
   });
 
-  it("insere o item imediatamente na categoria aberta sem exibir loading durante a revalidação", async () => {
+  it("insere o item imediatamente na coleção aberta sem exibir loading durante a revalidação", async () => {
     let resolveCategoryRefresh!: (value: { items: never[] }) => void;
     const categoryRefresh = new Promise<{ items: never[] }>((resolve) => { resolveCategoryRefresh = resolve; });
     mockedApiRequest.mockImplementation((path) => {
@@ -106,29 +106,29 @@ describe("CloudyShell", () => {
     });
     render(<CloudyShell />);
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Abrir categoria Ideias" })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "Abrir categoria Ideias" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Abrir coleção Ideias" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Abrir coleção Ideias" }));
     await waitFor(() => expect(mockedApiRequest).toHaveBeenCalledWith("/categories/category-1/items"));
     fireEvent.click(screen.getByRole("button", { name: "Adicionar referência" }));
     fireEvent.click(screen.getByRole("button", { name: "Salvar item de teste" }));
 
     expect(await screen.findByText("Item recém-criado", { selector: "[aria-label='Itens no grafo'] li" })).toBeInTheDocument();
-    expect(screen.queryByText("Abrindo Ideias...")).not.toBeInTheDocument();
+    expect(screen.queryByText("Abrindo suas coleções...")).not.toBeInTheDocument();
 
     await act(async () => { resolveCategoryRefresh({ items: [] }); });
     expect(screen.getByText("Item recém-criado", { selector: "[aria-label='Itens no grafo'] li" })).toBeInTheDocument();
   });
 
-  it("cria e atualiza o card Vazio para itens sem tag", async () => {
+  it("cria e atualiza o card Vazio para itens sem coleção", async () => {
     mockedApiRequest.mockResolvedValueOnce({ categories: [] });
     mockedApiRequest.mockRejectedValueOnce(new Error("offline"));
     render(<CloudyShell />);
 
     await waitFor(() => expect(mockedApiRequest).toHaveBeenCalledWith("/categories"));
     fireEvent.click(screen.getByRole("button", { name: "Adicionar referência" }));
-    fireEvent.click(screen.getByRole("button", { name: "Salvar item sem tag" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar item sem coleção" }));
 
-    expect(await screen.findByText("Vazio: 1 item; recentes: Item sem tag")).toBeInTheDocument();
+    expect(await screen.findByText("Vazio: 1 item; recentes: Item sem coleção")).toBeInTheDocument();
   });
 
   it("mantém a busca carregada sincronizada com o item criado", async () => {

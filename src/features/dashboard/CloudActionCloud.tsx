@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentProps } from "react";
-import { Blocks, CircleUser, Link2, LogOut, Plus, Search, Settings, Share2, Tags, UsersRound, type LucideIcon } from "lucide-react";
+import { Blocks, CircleUser, LogOut, Plus, Search, Settings, Share2, Tags, type LucideIcon } from "lucide-react";
 import packageJson from "../../../package.json";
 import { Badge } from "../../components/ui/badge";
 import { DropdownMenu, DropdownMenuItem } from "../../components/ui/dropdown-menu";
@@ -12,13 +12,14 @@ interface CloudActionCloudProps {
   onSearch?: () => void;
   onTagsOpen?: () => void;
   onIntegrationsOpen?: () => void;
+  onShareOpen?: () => void;
   onSignOut?: () => Promise<void>;
   onMenuOpenChange?: (isOpen: boolean) => void;
   photoURL?: string | null;
   disabled?: boolean;
 }
 
-type CloudMenu = "settings" | "share";
+type CloudMenu = "settings";
 
 interface CloudMenuItem {
   icon: LucideIcon;
@@ -29,17 +30,10 @@ const cloudMenus: Record<CloudMenu, { items: CloudMenuItem[]; title: string }> =
   settings: {
     title: "Configurações",
     items: []
-  },
-  share: {
-    title: "Compartilhar",
-    items: [
-      { icon: Link2, label: "Copiar link" },
-      { icon: UsersRound, label: "Convidar pessoas" }
-    ]
   }
 };
 
-export function CloudActionCloud({ email, name, onAddLink, onSearch, onTagsOpen, onIntegrationsOpen, onSignOut, onMenuOpenChange, photoURL, disabled = false }: CloudActionCloudProps) {
+export function CloudActionCloud({ email, name, onAddLink, onSearch, onTagsOpen, onIntegrationsOpen, onShareOpen, onSignOut, onMenuOpenChange, photoURL, disabled = false }: CloudActionCloudProps) {
   const [openMenu, setOpenMenu] = useState<CloudMenu | null>(null);
   const [closingMenu, setClosingMenu] = useState<CloudMenu | null>(null);
   const [profileImageFailed, setProfileImageFailed] = useState(false);
@@ -134,11 +128,9 @@ export function CloudActionCloud({ email, name, onAddLink, onSearch, onTagsOpen,
         <IconButton
           tone="share"
           label="Compartilhar"
-          aria-haspopup="menu"
-          aria-expanded={openMenu === "share"}
-          aria-controls="cloud-action-menu-share"
+          aria-haspopup="dialog"
           disabled={disabled}
-          onClick={() => toggleMenu("share")}
+          onClick={() => { closeMenu(); onShareOpen?.(); }}
         >
           <Share2 aria-hidden="true" strokeWidth={2.2} />
         </IconButton>
@@ -171,17 +163,11 @@ function CloudMenuPanel({ menu, id, closing, email, name, onAddLink, onTagsOpen,
               <span className="dropdown-menu-account-email">{formatAccountEmail(email)}</span>
             </div>
           </div>
-          <DropdownMenuItem icon={Tags} onClick={() => { onClose(); onTagsOpen?.(); }}>Tags</DropdownMenuItem>
+          <DropdownMenuItem icon={Tags} onClick={() => { onClose(); onTagsOpen?.(); }}>Coleções</DropdownMenuItem>
           <DropdownMenuItem icon={Blocks} onClick={() => { onClose(); onIntegrationsOpen?.(); }}>Integrações</DropdownMenuItem>
           <DropdownMenuItem icon={LogOut} destructive onClick={() => { onClose(); void onSignOut?.(); }}>Sair</DropdownMenuItem>
         </div>
-      ) : (
-        <div className="dropdown-menu-items">
-          {content.items.map(({ icon: Icon, label }) => (
-            <DropdownMenuItem icon={Icon} key={label} onClick={onClose}>{label}</DropdownMenuItem>
-          ))}
-        </div>
-      )}
+      ) : null}
     </DropdownMenu>
   );
 }

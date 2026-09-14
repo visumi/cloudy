@@ -1,6 +1,7 @@
 import { authenticate, resolveAuthenticatedUser, upsertUser } from "./access";
 import { createCategory, createIntegrationItem, createItem, deleteCategory, listCategories, listCategoryItems, listItems, previewItem, updateCategory } from "./items";
 import { authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken } from "./integration-tokens";
+import { createShare, getShare, importShare } from "./shares";
 import { createDatabaseClient, type AuthUser, type Env, type HttpError } from "./shared";
 import { HttpError as CloudyHttpError } from "./shared";
 
@@ -23,8 +24,11 @@ export interface RequestDependencies {
   createShortcutToken?: typeof createShortcutToken;
   getShortcutToken?: typeof getShortcutToken;
   revokeShortcutToken?: typeof revokeShortcutToken;
+  createShare?: typeof createShare;
+  getShare?: typeof getShare;
+  importShare?: typeof importShare;
 }
-const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, listCategoryItems, createItem, previewItem, listCategories, createCategory, updateCategory, deleteCategory, createIntegrationItem, authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken };
+const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, listCategoryItems, createItem, previewItem, listCategories, createCategory, updateCategory, deleteCategory, createIntegrationItem, authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken, createShare, getShare, importShare };
 
 export default { fetch: (request: Request, env: Env) => handleRequest(request, env) } satisfies ExportedHandler<Env>;
 
@@ -57,6 +61,17 @@ export async function handleRequest(request: Request, env: Env, dependencies: Re
     if (request.method === "DELETE" && url.pathname === "/integrations/shortcut/token") {
       await (dependencies.revokeShortcutToken ?? defaultDependencies.revokeShortcutToken!)(db, user.uid);
       return json({ ok: true }, 200, corsHeaders);
+    }
+    if (request.method === "POST" && url.pathname === "/shares") {
+      return json(await (dependencies.createShare ?? defaultDependencies.createShare!)(db, user.uid, await readRequestJson(request)), 201, noStoreHeaders(corsHeaders));
+    }
+    const shareMatch = url.pathname.match(/^\/shares\/([^/]+)$/);
+    if (shareMatch && request.method === "GET") {
+      return json(await (dependencies.getShare ?? defaultDependencies.getShare!)(db, shareMatch[1]), 200, noStoreHeaders(corsHeaders));
+    }
+    const shareImportMatch = url.pathname.match(/^\/shares\/([^/]+)\/imports$/);
+    if (shareImportMatch && request.method === "POST") {
+      return json(await (dependencies.importShare ?? defaultDependencies.importShare!)(db, user.uid, shareImportMatch[1], await readRequestJson(request)), 201, noStoreHeaders(corsHeaders));
     }
     if (request.method === "POST" && url.pathname === "/items/preview") {
       return json(await dependencies.previewItem(await readRequestJson(request)), 200, corsHeaders);
