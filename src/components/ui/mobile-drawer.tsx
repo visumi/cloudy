@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type PointerEvent, typ
 
 const CLOSE_DISTANCE = 96;
 const CLOSE_VELOCITY = 0.65;
+const DRAG_START_DISTANCE = 6;
 const INTERACTIVE_SELECTOR = "button, a, input, textarea, select, [contenteditable=\"true\"], [role=\"button\"]";
 
 export interface MobileDrawerGesture {
@@ -32,7 +33,7 @@ export function useMobileDrawerGesture(onClose: () => void): MobileDrawerGesture
     if (event.target instanceof Element && event.target.closest(INTERACTIVE_SELECTOR)) return;
     startRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, time: performance.now() };
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    setIsDragging(true);
+    setIsDragging(false);
     updateOffset(0);
   };
 
@@ -42,8 +43,12 @@ export function useMobileDrawerGesture(onClose: () => void): MobileDrawerGesture
     const verticalDistance = event.clientY - start.y;
     const horizontalDistance = Math.abs(event.clientX - start.x);
     const isDownwardGesture = verticalDistance > 0 && verticalDistance >= horizontalDistance * 0.75;
-    if (isDownwardGesture) event.preventDefault();
-    updateOffset(isDownwardGesture ? verticalDistance : 0);
+    const hasStartedDragging = isDownwardGesture && verticalDistance >= DRAG_START_DISTANCE;
+    if (hasStartedDragging) {
+      event.preventDefault();
+      setIsDragging(true);
+    }
+    updateOffset(hasStartedDragging ? verticalDistance : 0);
   };
 
   const finishGesture = (event: PointerEvent<HTMLElement>) => {

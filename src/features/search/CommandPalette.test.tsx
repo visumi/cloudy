@@ -66,4 +66,16 @@ describe("CommandPalette", () => {
     fireEvent.keyDown(input, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("não reinicia o drawer ao tocar no conteúdo sem arrastar", () => {
+    const onClose = vi.fn();
+    render(<CommandPalette open items={items} isLoading={false} error={null} onClose={onClose} onRetry={vi.fn()} onSelect={vi.fn()} />);
+    const palette = document.querySelector<HTMLElement>(".command-palette")!;
+
+    fireEvent.pointerDown(palette, { pointerId: 1, pointerType: "touch", clientX: 100, clientY: 100 });
+    fireEvent.pointerUp(palette, { pointerId: 1, pointerType: "touch", clientX: 100, clientY: 101 });
+
+    expect(palette).not.toHaveAttribute("data-dragging", "true");
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

@@ -15,6 +15,16 @@ const CloudMascot = lazy(() => import("./CloudMascot").then(({ CloudMascot: Masc
 const ACTION_CLOUD_IDLE_DELAY = 4200;
 const UNTAGGED_CATEGORY_ID = "__untagged__";
 
+interface RefreshOptions {
+  background?: boolean;
+  force?: boolean;
+  preserveItem?: CloudyItem;
+}
+
+interface CategoryItemsRefreshOptions extends RefreshOptions {
+  select?: boolean;
+}
+
 function useActionCloudIdle(menuOpen: boolean) {
   const [isHidden, setIsHidden] = useState(false);
 
@@ -69,9 +79,11 @@ export function CloudyShell() {
   const [categoryItemsLoading, setCategoryItemsLoading] = useState(false);
   const [categoryItemsError, setCategoryItemsError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const categoriesRequestId = useRef(0);
   const categoryRequestId = useRef(0);
+  const searchItemsRequestId = useRef(0);
   const searchItemsLoadedRef = useRef(false);
-  const searchItemsRequestRef = useRef(false);
+  const searchItemsPendingRequestId = useRef<number | null>(null);
   const isActionCloudHidden = useActionCloudIdle(isMenuOpen);
   const isActionCloudSuppressed = isActionCloudHidden || isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isSearchOpen || searchDetailItem !== null;
   const isModalOpen = isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isSearchOpen || searchDetailItem !== null;
@@ -81,20 +93,26 @@ export function CloudyShell() {
   const managedCategories = useMemo(() => categories.filter((category) => !category.isVirtual && !category.isSystem), [categories]);
   const visibleItems = selectedCategoryId ? categoryItems[selectedCategoryId] ?? [] : [];
 
-  const loadSearchItems = useCallback(async () => {
-    if (searchItemsLoadedRef.current || searchItemsRequestRef.current) return;
-    searchItemsRequestRef.current = true;
-    setSearchItemsLoading(true);
-    setSearchItemsError(null);
+  const loadSearchItems = useCallback(async ({ background = false, force = false, preserveItem }: RefreshOptions = {}) => {
+    if (!force && (searchItemsLoadedRef.current || searchItemsPendingRequestId.current !== null)) return;
+    const requestId = ++searchItemsRequestId.current;
+    searchItemsPendingRequestId.current = requestId;
+    if (!background) {
+      setSearchItemsLoading(true);
+      setSearchItemsError(null);
+    }
     try {
       const response = await apiRequest<ItemsResponse>("/items");
-      setSearchItems(response.items);
+      if (requestId !== searchItemsRequestId.current) return;
+      setSearchItems(preserveItem ? upsertItem(response.items, preserveItem) : sortUniqueItems(response.items));
       searchItemsLoadedRef.current = true;
     } catch {
-      setSearchItemsError("Não conseguimos abrir sua busca agora.");
+      if (requestId === searchItemsRequestId.current && !background) setSearchItemsError("Não conseguimos abrir sua busca agora.");
     } finally {
-      searchItemsRequestRef.current = false;
-      setSearchItemsLoading(false);
+      if (requestId === searchItemsRequestId.current) {
+        searchItemsPendingRequestId.current = null;
+        setSearchItemsLoading(false);
+      }
     }
   }, []);
 
@@ -119,38 +137,42 @@ export function CloudyShell() {
     return () => document.removeEventListener("keydown", handleGlobalShortcut);
   }, [closeSearch, isSearchOpen, openSearch]);
 
-  const loadCategories = useCallback(async () => {
-    setCategoriesLoading(true);
-    setCategoriesError(null);
+  const loadCategories = useCallback(async ({ background = false, preserveItem }: RefreshOptions = {}) => {
+    const requestId = ++categoriesRequestId.current;
+    if (!background) {
+      setCategoriesLoading(true);
+      setCategoriesError(null);
+    }
     try {
       const response = await apiRequest<CategoriesResponse>("/categories");
-      setCategories(response.categories);
+      if (requestId !== categoriesRequestId.current) return;
+      setCategories(preserveItem ? updateCategorySummary(response.categories, preserveItem, toCategoryRecentItem(preserveItem)) : response.categories);
     } catch {
-      setCategoriesError("Não conseguimos abrir suas categorias agora.");
+      if (requestId === categoriesRequestId.current && !background) setCategoriesError("Não conseguimos abrir suas categorias agora.");
     } finally {
-      setCategoriesLoading(false);
+      if (requestId === categoriesRequestId.current) setCategoriesLoading(false);
     }
   }, []);
 
   useEffect(() => { void loadCategories(); }, [loadCategories]);
 
-  const loadCategoryItems = useCallback(async (categoryId: string) => {
+  const loadCategoryItems = useCallback(async (categoryId: string, { background = false, force = false, preserveItem, select = true }: CategoryItemsRefreshOptions = {}) => {
     const requestId = ++categoryRequestId.current;
-    setSelectedCategoryId(categoryId);
-    setCategoryItemsError(null);
-    if (categoryItems[categoryId]) {
+    if (select) setSelectedCategoryId(categoryId);
+    if (!background) setCategoryItemsError(null);
+    if (!force && categoryItems[categoryId]) {
       setCategoryItemsLoading(false);
       return;
     }
 
-    setCategoryItemsLoading(true);
+    if (!background) setCategoryItemsLoading(true);
     try {
       const response = await apiRequest<ItemsResponse>(`/categories/${encodeURIComponent(categoryId)}/items`);
       if (requestId !== categoryRequestId.current) return;
-      setCategoryItems((current) => ({ ...current, [categoryId]: response.items }));
+      setCategoryItems((current) => ({ ...current, [categoryId]: preserveItem ? upsertItem(response.items, preserveItem) : sortUniqueItems(response.items) }));
     } catch {
       if (requestId !== categoryRequestId.current) return;
-      setCategoryItemsError("Não conseguimos abrir os itens desta categoria.");
+      if (!background) setCategoryItemsError("Não conseguimos abrir os itens desta categoria.");
     } finally {
       if (requestId === categoryRequestId.current) setCategoryItemsLoading(false);
     }
@@ -170,13 +192,24 @@ export function CloudyShell() {
   const handleItemCreated = useCallback((item: CloudyItem) => {
     const categoryId = item.category?.id ?? UNTAGGED_CATEGORY_ID;
     const recentItem = toCategoryRecentItem(item);
+    const shouldRefreshSearch = searchItemsLoadedRef.current || searchItemsPendingRequestId.current !== null;
     setCategories((currentCategories) => updateCategorySummary(currentCategories, item, recentItem));
     setCategoryItems((currentItems) => {
       if (!Object.prototype.hasOwnProperty.call(currentItems, categoryId)) return currentItems;
-      return { ...currentItems, [categoryId]: [item, ...currentItems[categoryId].filter((currentItem) => currentItem.id !== item.id)] };
+      return { ...currentItems, [categoryId]: upsertItem(currentItems[categoryId], item) };
     });
+    if (shouldRefreshSearch) {
+      searchItemsLoadedRef.current = true;
+      setSearchItems((currentItems) => upsertItem(currentItems, item));
+      setSearchItemsError(null);
+    }
     showSavedMessage(setSavedMessage);
-  }, []);
+    void loadCategories({ background: true, preserveItem: item });
+    if (selectedCategoryId === categoryId) {
+      void loadCategoryItems(categoryId, { background: true, force: true, preserveItem: item, select: false });
+    }
+    if (shouldRefreshSearch) void loadSearchItems({ background: true, force: true, preserveItem: item });
+  }, [loadCategories, loadCategoryItems, loadSearchItems, selectedCategoryId]);
 
   const handleCategoriesChange = useCallback((nextCategories: CategorySummary[]) => {
     const reservedCategories = categories.filter((category) => category.isVirtual || category.isSystem);
@@ -233,7 +266,7 @@ function updateCategorySummary(categories: CategorySummary[], item: CloudyItem, 
   if (existing) {
     return categories.map((category) => category.id === categoryId ? {
       ...category,
-      itemCount: category.itemCount + 1,
+      itemCount: category.recentItems.some((currentItem) => currentItem.id === recentItem.id) ? category.itemCount : category.itemCount + 1,
       recentItems: [recentItem, ...category.recentItems.filter((currentItem) => currentItem.id !== recentItem.id)].sort(compareRecentItems).slice(0, 5)
     } : category);
   }
@@ -255,6 +288,21 @@ function updateCategorySummary(categories: CategorySummary[], item: CloudyItem, 
 
 function compareRecentItems(first: CategoryRecentItem, second: CategoryRecentItem): number {
   return second.createdAt.localeCompare(first.createdAt) || second.id.localeCompare(first.id);
+}
+
+function upsertItem(items: CloudyItem[], item: CloudyItem): CloudyItem[] {
+  return sortUniqueItems([item, ...items]);
+}
+
+function sortUniqueItems(items: CloudyItem[]): CloudyItem[] {
+  const seen = new Set<string>();
+  return items
+    .filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    })
+    .sort((first, second) => second.createdAt.localeCompare(first.createdAt) || second.id.localeCompare(first.id));
 }
 
 function sortCategories(categories: CategorySummary[]): CategorySummary[] {
