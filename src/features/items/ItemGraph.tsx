@@ -190,12 +190,6 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
           <button className="button-action" type="button" onClick={onRetry}>Tentar novamente</button>
         </div>
       )}
-      {!isLoading && !error && !isCategoryView && categories.every((category) => category.id === INTEGRATIONS_CATEGORY_ID || category.isSystem) && (
-        <div className="graph-empty-state">
-          <p>Sua nuvem começa com uma referência.</p>
-          <button className="button-action" type="button" onClick={onAddLink}>Adicionar primeiro link</button>
-        </div>
-      )}
       {!isLoading && !error && isCategoryView && items.length === 0 && (
         <div className="graph-empty-state">
           <p>Esta coleção ainda não tem referências</p>
