@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentProps } from "react";
-import { Blocks, CircleUser, Ellipsis, Hand, LogOut, MousePointer2, MoveRight, Plus, Search, Settings, Share2, Tags, Trash2, type LucideIcon } from "lucide-react";
+import { Blocks, CircleUser, Ellipsis, Hand, LogOut, MoveRight, Plus, Pointer, Search, Settings, Share2, Tags, Trash2, type LucideIcon } from "lucide-react";
 import packageJson from "../../../package.json";
 import { Badge } from "../../components/ui/badge";
 import { DropdownMenu, DropdownMenuItem } from "../../components/ui/dropdown-menu";
@@ -166,7 +166,7 @@ export function CloudActionCloud({ email, name, onAddLink, onSearch, onTagsOpen,
       </div>}
       {selectionToggleMounted && <div className={`cloud-action-slot cloud-action-slot--selection-toggle${selectionToggleClosing ? " cloud-action-slot--selection-toggle-closing" : ""}`}>
         <IconButton tone="settings" className="icon-button--selection-toggle" label={selectionMode ? "Desativar seleção de itens" : "Ativar seleção de itens"} disabled={disabled} aria-pressed={selectionMode} onClick={() => { closeMenu(); onSelectionToggle?.(); }}>
-          {selectionMode ? <Hand aria-hidden="true" strokeWidth={2.1} /> : <MousePointer2 aria-hidden="true" strokeWidth={2.1} />}
+          {selectionMode ? <Hand aria-hidden="true" strokeWidth={2.1} /> : <Pointer aria-hidden="true" strokeWidth={2.1} />}
         </IconButton>
       </div>}
       {renderedMenu && <CloudMenuPanel menu={renderedMenu} id={`cloud-action-menu-${renderedMenu}`} closing={isClosing} email={email} name={name} onAddLink={onAddLink} onTagsOpen={onTagsOpen} onIntegrationsOpen={onIntegrationsOpen} onClose={closeMenu} onSignOut={onSignOut} photoURL={photoURL} profileImageFailed={profileImageFailed} setProfileImageFailed={setProfileImageFailed} selectedCount={selectedCount} onBulkMove={onBulkMove} onBulkDelete={onBulkDelete} onAnimationEnd={(event) => { if (isClosing && event.animationName === "dropdown-menu-close") setClosingMenu(null); }} />}
