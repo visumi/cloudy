@@ -72,7 +72,7 @@ describe("CloudActionCloud", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ações para 2 itens selecionados" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Selecionar tudo" }));
     expect(onSelectAll).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("button", { name: "Ações para 2 itens selecionados" }));
+    expect(screen.getByRole("menu", { name: "Ações em massa" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: "Mover 2 itens" }));
     expect(onBulkMove).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", { name: "Ações para 2 itens selecionados" }));

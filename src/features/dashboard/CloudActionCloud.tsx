@@ -222,7 +222,7 @@ function CloudMenuPanel({ menu, id, closing, email, name, onAddLink, onTagsOpen,
         </div>
       ) : (
         <>
-          <DropdownMenuItem icon={LayersPlus} onClick={() => { onClose(); onSelectAll?.(); }}>Selecionar tudo</DropdownMenuItem>
+          <DropdownMenuItem icon={LayersPlus} onClick={() => { onSelectAll?.(); }}>Selecionar tudo</DropdownMenuItem>
           <DropdownMenuItem icon={ArrowLeftRight} onClick={() => { onClose(); onBulkMove?.(); }}>Mover {selectedCount} {selectedCount === 1 ? "item" : "itens"}</DropdownMenuItem>
           <DropdownMenuItem icon={Trash2} destructive onClick={() => { onClose(); onBulkDelete?.(); }}>Excluir {selectedCount} {selectedCount === 1 ? "item" : "itens"}</DropdownMenuItem>
         </>
