@@ -1,9 +1,24 @@
 import { decodeProtectedHeader, importX509, jwtVerify, type JWTPayload } from "jose";
 import type { Client } from "@libsql/client/web";
-import { type AccessRole, type AuthUser, type DbRow, type Env, HttpError, readDbString, requiredEnv } from "./shared";
+import { type AccessRole, type AuthUser, type DbRow, type Env, HttpError, readDbNullableString, readDbNumber, readDbString, requiredEnv } from "./shared";
 
 interface AuthIdentity { uid: string; email: string; name: string | null; picture: string | null; }
-interface AccessGrantRow { role: AccessRole; active: number; }
+interface AccessGrantRow {
+  email: string;
+  role: AccessRole;
+  active: number;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+  user_id?: string | null;
+  name?: string | null;
+  picture?: string | null;
+  last_login_at?: string | null;
+}
+
+export interface AccessGrantInput { email?: string; }
+export interface AccessGrantPatchInput { active?: boolean; }
+
 type FirebaseKey = Awaited<ReturnType<typeof importX509>>;
 let keyCache: { expiresAt: number; keys: Map<string, FirebaseKey> } | null = null;
 
@@ -48,16 +63,14 @@ export function getOwnerEmails(env: Pick<Env, "OWNER_EMAIL">): string[] {
   return emails;
 }
 export function isOwnerEmail(email: string, env: Pick<Env, "OWNER_EMAIL">): boolean { return getOwnerEmails(env).includes(normalizeEmail(email)); }
-export function resolveAccessDecision(email: string, grant: AccessGrantRow | null, env: Pick<Env, "OWNER_EMAIL">): { allowed: boolean; role: AccessRole | null } {
+export function resolveAccessDecision(email: string, grant: Pick<AccessGrantRow, "active" | "role"> | null, env: Pick<Env, "OWNER_EMAIL">): { allowed: boolean; role: AccessRole | null } {
   if (isOwnerEmail(email, env)) return { allowed: true, role: "owner" };
   if (grant?.active === 1) return { allowed: true, role: "member" };
   return { allowed: false, role: null };
 }
 
 export async function resolveAuthenticatedUser(db: Client, identity: AuthIdentity, env: Env): Promise<AuthUser> {
-  const result = isOwnerEmail(identity.email, env) ? null : await db.execute({ sql: "SELECT role, active FROM access_grants WHERE email = ? LIMIT 1", args: [identity.email] });
-  const row = result?.rows[0] as DbRow | undefined;
-  const grant = row ? { role: readRole(row), active: Number(row.active) } : null;
+  const grant = isOwnerEmail(identity.email, env) ? null : await findAccessGrant(db, identity.email);
   const access = resolveAccessDecision(identity.email, grant, env);
   return { ...identity, allowed: access.allowed, role: access.role };
 }
@@ -66,6 +79,132 @@ function readRole(row: DbRow): AccessRole {
   const role = readDbString(row, "role");
   if (role !== "owner" && role !== "member") throw new HttpError(500, "invalid_db_role");
   return role;
+}
+
+function mapAccessGrantRow(row: DbRow): AccessGrantRow {
+  return {
+    email: readDbString(row, "email"),
+    role: readRole(row),
+    active: readDbNumber(row, "active"),
+    created_by_user_id: readDbNullableString(row, "created_by_user_id"),
+    created_at: readDbString(row, "created_at"),
+    updated_at: readDbString(row, "updated_at"),
+    user_id: row.user_id === undefined ? undefined : readDbNullableString(row, "user_id"),
+    name: row.name === undefined ? undefined : readDbNullableString(row, "name"),
+    picture: row.picture === undefined ? undefined : readDbNullableString(row, "picture"),
+    last_login_at: row.last_login_at === undefined ? undefined : readDbNullableString(row, "last_login_at")
+  };
+}
+
+async function findAccessGrant(db: Client, email: string, includeUser = false): Promise<AccessGrantRow | null> {
+  const result = await db.execute({
+    sql: includeUser
+      ? `SELECT g.email, g.role, g.active, g.created_by_user_id, g.created_at, g.updated_at,
+          u.id AS user_id, u.name, u.picture, u.last_login_at
+        FROM access_grants g
+        LEFT JOIN users u ON u.email = g.email
+        WHERE g.email = ? LIMIT 1`
+      : "SELECT email, role, active, created_by_user_id, created_at, updated_at FROM access_grants WHERE email = ? LIMIT 1",
+    args: [normalizeEmail(email)]
+  });
+  const row = result.rows[0] as DbRow | undefined;
+  return row ? mapAccessGrantRow(row) : null;
+}
+
+export function requireOwner(user: AuthUser): void {
+  if (user.role !== "owner") throw new HttpError(403, "owner_required");
+}
+
+export async function listAccessGrants(db: Client, env: Env) {
+  await ensureOwnerAccessGrants(db, env);
+  const result = await db.execute(`SELECT g.email, g.role, g.active, g.created_by_user_id, g.created_at, g.updated_at,
+      u.id AS user_id, u.name, u.picture, u.last_login_at
+    FROM access_grants g
+    LEFT JOIN users u ON u.email = g.email`);
+
+  return (result.rows as DbRow[])
+    .map(mapAccessGrantRow)
+    .map((row) => mapAccessGrant(row, env))
+    .sort((left, right) => Number(right.role === "owner") - Number(left.role === "owner")
+      || Number(right.active) - Number(left.active)
+      || left.email.localeCompare(right.email));
+}
+
+export async function createAccessGrant(db: Client, user: AuthUser, env: Env, payload: unknown) {
+  const email = normalizeEmail(readInputEmail(payload));
+  if (!isValidEmail(email)) throw new HttpError(400, "invalid_email");
+
+  await db.execute({
+    sql: `INSERT INTO access_grants (email, role, active, created_by_user_id, created_at, updated_at)
+      VALUES (?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT(email) DO UPDATE SET role = excluded.role, active = 1, updated_at = CURRENT_TIMESTAMP`,
+    args: [email, isOwnerEmail(email, env) ? "owner" : "member", user.uid]
+  });
+
+  return mapAccessGrant((await findAccessGrant(db, email, true))!, env);
+}
+
+export async function updateAccessGrant(db: Client, env: Env, rawEmail: string, payload: unknown) {
+  const email = normalizeEmail(decodeEmail(rawEmail));
+  if (!isValidEmail(email)) throw new HttpError(400, "invalid_email");
+  const active = readInputActive(payload);
+  if (typeof active !== "boolean") throw new HttpError(400, "invalid_active");
+  if (isOwnerEmail(email, env) && active === false) throw new HttpError(400, "cannot_disable_owner");
+
+  const existing = await findAccessGrant(db, email);
+  if (!existing) throw new HttpError(404, "not_found");
+
+  await db.execute({
+    sql: "UPDATE access_grants SET active = ?, updated_at = CURRENT_TIMESTAMP WHERE email = ?",
+    args: [active ? 1 : 0, email]
+  });
+  return mapAccessGrant((await findAccessGrant(db, email, true))!, env);
+}
+
+async function ensureOwnerAccessGrants(db: Client, env: Env): Promise<void> {
+  for (const email of getOwnerEmails(env)) {
+    await db.execute({
+      sql: `INSERT INTO access_grants (email, role, active, created_at, updated_at)
+        VALUES (?, 'owner', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT(email) DO UPDATE SET role = 'owner', active = 1, updated_at = CURRENT_TIMESTAMP`,
+      args: [email]
+    });
+  }
+}
+
+function mapAccessGrant(row: AccessGrantRow, env: Env) {
+  const owner = isOwnerEmail(row.email, env);
+  return {
+    email: row.email,
+    role: owner ? "owner" as const : "member" as const,
+    active: owner || row.active === 1,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    user: row.user_id ? {
+      uid: row.user_id,
+      name: row.name ?? null,
+      picture: row.picture ?? null,
+      lastLoginAt: row.last_login_at ?? null
+    } : null
+  };
+}
+
+function readInputEmail(payload: unknown): string {
+  if (!payload || typeof payload !== "object" || !("email" in payload)) return "";
+  return typeof payload.email === "string" ? payload.email : "";
+}
+
+function readInputActive(payload: unknown): boolean | undefined {
+  if (!payload || typeof payload !== "object" || !("active" in payload)) return undefined;
+  return typeof payload.active === "boolean" ? payload.active : undefined;
+}
+
+function decodeEmail(value: string): string {
+  try { return decodeURIComponent(value); } catch { throw new HttpError(400, "invalid_email"); }
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 export async function upsertUser(db: Client, user: AuthUser): Promise<void> {

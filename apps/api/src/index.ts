@@ -1,4 +1,4 @@
-import { authenticate, resolveAuthenticatedUser, upsertUser } from "./access";
+import { authenticate, createAccessGrant, listAccessGrants, requireOwner, resolveAuthenticatedUser, updateAccessGrant, upsertUser } from "./access";
 import { bulkItemAction, createCategory, createIntegrationItem, createItem, deleteCategory, deleteItem, listCategories, listCategoryItems, listItems, previewItem, updateCategory, updateItem } from "./items";
 import { authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken } from "./integration-tokens";
 import { createShare, getShare, importShare } from "./shares";
@@ -30,16 +30,20 @@ export interface RequestDependencies {
   createShare?: typeof createShare;
   getShare?: typeof getShare;
   importShare?: typeof importShare;
+  listAccessGrants?: typeof listAccessGrants;
+  createAccessGrant?: typeof createAccessGrant;
+  updateAccessGrant?: typeof updateAccessGrant;
 }
-const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, listCategoryItems, createItem, updateItem, deleteItem, bulkItemAction, previewItem, listCategories, createCategory, updateCategory, deleteCategory, createIntegrationItem, authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken, createShare, getShare, importShare };
+const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, listCategoryItems, createItem, updateItem, deleteItem, bulkItemAction, previewItem, listCategories, createCategory, updateCategory, deleteCategory, createIntegrationItem, authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken, createShare, getShare, importShare, listAccessGrants, createAccessGrant, updateAccessGrant };
 
 export default { fetch: (request: Request, env: Env) => handleRequest(request, env) } satisfies ExportedHandler<Env>;
 
 export async function handleRequest(request: Request, env: Env, dependencies: RequestDependencies = defaultDependencies): Promise<Response> {
   const corsHeaders = buildCorsHeaders(request, env);
-  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+  const url = new URL(request.url);
+  const responseHeaders = url.pathname.startsWith("/admin/access-users") ? noStoreHeaders(corsHeaders) : corsHeaders;
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: responseHeaders });
   try {
-    const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/health") return json({ ok: true, service: "cloudy-api" }, 200, corsHeaders);
     if (request.method === "POST" && url.pathname === "/integrations/shortcut/items") {
       const db = dependencies.createDatabaseClient(env);
@@ -54,7 +58,21 @@ export async function handleRequest(request: Request, env: Env, dependencies: Re
       if (user.allowed) await dependencies.upsertUser(db, user);
       return json(user, 200, corsHeaders);
     }
-    if (!user.allowed) return json({ error: "forbidden" }, 403, corsHeaders);
+    if (!user.allowed) return json({ error: "forbidden" }, 403, responseHeaders);
+    const accessGrantMatch = url.pathname.match(/^\/admin\/access-users\/([^/]+)$/);
+    if (url.pathname === "/admin/access-users" || accessGrantMatch) requireOwner(user);
+    if (url.pathname === "/admin/access-users") {
+      if (request.method === "GET") {
+        return json(await (dependencies.listAccessGrants ?? defaultDependencies.listAccessGrants!)(db, env), 200, responseHeaders);
+      }
+      if (request.method === "POST") {
+        await dependencies.upsertUser(db, user);
+        return json(await (dependencies.createAccessGrant ?? defaultDependencies.createAccessGrant!)(db, user, env, await readRequestJson(request)), 201, responseHeaders);
+      }
+    }
+    if (accessGrantMatch && request.method === "PATCH") {
+      return json(await (dependencies.updateAccessGrant ?? defaultDependencies.updateAccessGrant!)(db, env, accessGrantMatch[1], await readRequestJson(request)), 200, responseHeaders);
+    }
     if (request.method === "GET" && url.pathname === "/integrations/shortcut/token") {
       return json(await (dependencies.getShortcutToken ?? defaultDependencies.getShortcutToken!)(db, user.uid), 200, corsHeaders);
     }
@@ -112,11 +130,11 @@ export async function handleRequest(request: Request, env: Env, dependencies: Re
     if (categoryMatch && request.method === "DELETE") {
       return json(await (dependencies.deleteCategory ?? defaultDependencies.deleteCategory!)(db, user.uid, categoryMatch[1]), 200, corsHeaders);
     }
-    return json({ error: "not_found" }, 404, corsHeaders);
+    return json({ error: "not_found" }, 404, responseHeaders);
   } catch (error) {
-    if (error instanceof CloudyHttpError) return json({ error: error.message }, error.status, corsHeaders);
+    if (error instanceof CloudyHttpError) return json({ error: error.message }, error.status, responseHeaders);
     console.error(error);
-    return json({ error: "internal_server_error" }, 500, corsHeaders);
+    return json({ error: "internal_server_error" }, 500, responseHeaders);
   }
 }
 

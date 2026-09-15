@@ -40,6 +40,51 @@ describe("API base", () => {
     await expect(response.json()).resolves.toEqual({ error: "invalid_token" });
   });
 
+  it("permite que o owner liste acessos sem cache", async () => {
+    const listAccessGrants = vi.fn(async () => [{ email: "owner@example.com", role: "owner", active: true }]);
+    const dependencies: RequestDependencies = { authenticate: vi.fn(async () => identity), createDatabaseClient: vi.fn(() => ({} as never)), resolveAuthenticatedUser: vi.fn(async () => profile), upsertUser: vi.fn(), listItems: vi.fn(), createItem: vi.fn(), previewItem: vi.fn(), listAccessGrants };
+
+    const response = await handleRequest(new Request("https://cloudy-api.isumi.com.br/admin/access-users", { headers: { Authorization: "Bearer test" } }), env, dependencies);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toEqual([{ email: "owner@example.com", role: "owner", active: true }]);
+    expect(listAccessGrants).toHaveBeenCalledWith(expect.anything(), env);
+  });
+
+  it("bloqueia a administração de acessos para membros", async () => {
+    const listAccessGrants = vi.fn();
+    const dependencies: RequestDependencies = { authenticate: vi.fn(async () => ({ ...identity, email: "member@example.com" })), createDatabaseClient: vi.fn(() => ({} as never)), resolveAuthenticatedUser: vi.fn(async () => ({ ...profile, email: "member@example.com", role: "member" as const })), upsertUser: vi.fn(), listItems: vi.fn(), createItem: vi.fn(), previewItem: vi.fn(), listAccessGrants };
+
+    const response = await handleRequest(new Request("https://cloudy-api.isumi.com.br/admin/access-users", { headers: { Authorization: "Bearer test" } }), env, dependencies);
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toEqual({ error: "owner_required" });
+    expect(listAccessGrants).not.toHaveBeenCalled();
+
+    const updateResponse = await handleRequest(new Request("https://cloudy-api.isumi.com.br/admin/access-users/other%40example.com", { method: "PATCH", headers: { Authorization: "Bearer test", "Content-Type": "application/json" }, body: JSON.stringify({ active: false }) }), env, dependencies);
+    expect(updateResponse.status).toBe(403);
+    expect(updateResponse.headers.get("Cache-Control")).toBe("no-store");
+    await expect(updateResponse.json()).resolves.toEqual({ error: "owner_required" });
+  });
+
+  it("cria e atualiza acessos como owner", async () => {
+    const createAccessGrant = vi.fn(async () => ({ email: "member@example.com", active: true }));
+    const updateAccessGrant = vi.fn(async () => ({ email: "member@example.com", active: false }));
+    const dependencies: RequestDependencies = { authenticate: vi.fn(async () => identity), createDatabaseClient: vi.fn(() => ({} as never)), resolveAuthenticatedUser: vi.fn(async () => profile), upsertUser: vi.fn(), listItems: vi.fn(), createItem: vi.fn(), previewItem: vi.fn(), createAccessGrant, updateAccessGrant };
+
+    const createResponse = await handleRequest(new Request("https://cloudy-api.isumi.com.br/admin/access-users", { method: "POST", headers: { Authorization: "Bearer test", "Content-Type": "application/json" }, body: JSON.stringify({ email: "member@example.com" }) }), env, dependencies);
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.headers.get("Cache-Control")).toBe("no-store");
+    expect(createAccessGrant).toHaveBeenCalledWith(expect.anything(), profile, env, { email: "member@example.com" });
+
+    const updateResponse = await handleRequest(new Request("https://cloudy-api.isumi.com.br/admin/access-users/member%40example.com", { method: "PATCH", headers: { Authorization: "Bearer test", "Content-Type": "application/json" }, body: JSON.stringify({ active: false }) }), env, dependencies);
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.headers.get("Cache-Control")).toBe("no-store");
+    expect(updateAccessGrant).toHaveBeenCalledWith(expect.anything(), env, "member%40example.com", { active: false });
+  });
+
   it("lista itens apenas para o usuário autenticado", async () => {
     const listItems = vi.fn(async () => [{ id: "item-1" }]);
     const dependencies: RequestDependencies = { authenticate: vi.fn(async () => identity), createDatabaseClient: vi.fn(() => ({} as never)), resolveAuthenticatedUser: vi.fn(async () => profile), upsertUser: vi.fn(), listItems, createItem: vi.fn(), previewItem: vi.fn() };

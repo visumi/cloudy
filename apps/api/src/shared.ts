@@ -27,6 +27,21 @@ export function readDbString(row: DbRow, key: string): string {
   return value;
 }
 
+export function readDbNullableString(row: DbRow, key: string): string | null {
+  const value = row[key];
+  if (value === null) return null;
+  if (typeof value !== "string") throw new HttpError(500, `invalid_db_${key}`);
+  return value;
+}
+
+export function readDbNumber(row: DbRow, key: string): number {
+  const rawValue = row[key];
+  if (typeof rawValue !== "number" && typeof rawValue !== "bigint") throw new HttpError(500, `invalid_db_${key}`);
+  const value = Number(rawValue);
+  if (!Number.isFinite(value)) throw new HttpError(500, `invalid_db_${key}`);
+  return value;
+}
+
 export class HttpError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
 }
