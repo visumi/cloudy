@@ -181,12 +181,13 @@ describe("ItemGraph", () => {
     expect(document.querySelectorAll(".item-node")).toHaveLength(100);
   });
 
-  it("mantém o zoom reduzido para exibir todos os itens", () => {
+  it("mantém a escala do grafo e oferece navegação pelo viewport", () => {
     renderGraph({ selectedCategory: category, items: [item] });
-    const viewport = document.querySelector(".graph-viewport")!;
+    const viewport = screen.getByRole("region", { name: "Grafo de referências. Arraste para navegar." });
     const layer = document.querySelector(".graph-zoom-layer")!;
 
-    expect(viewport).not.toHaveClass("graph-viewport--interactive");
+    expect(viewport).toHaveClass("graph-viewport--interactive");
+    expect(viewport).toHaveAttribute("tabindex", "0");
     expect(layer).toHaveStyle("transform: scale(0.9)");
   });
 });

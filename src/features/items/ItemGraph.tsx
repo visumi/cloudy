@@ -66,8 +66,17 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
   const itemLayout = useMemo(() => buildCategoryItemGraphLayout(items), [items]);
   const isCategoryView = selectedCategory !== null;
   const [viewTransition, setViewTransition] = useState<GraphViewTransition>(selectedCategory ? "category" : "overview");
+  const graphViewportRef = useRef<HTMLDivElement>(null);
   const previousCategoryRef = useRef<CategorySummary | null>(selectedCategory);
   const viewTransitionTimerRef = useRef<number | undefined>(undefined);
+
+  useLayoutEffect(() => {
+    const viewport = graphViewportRef.current;
+    if (!viewport) return;
+
+    viewport.scrollLeft = Math.max((viewport.scrollWidth - viewport.clientWidth) / 2, 0);
+    viewport.scrollTop = Math.max((viewport.scrollHeight - viewport.clientHeight) / 2, 0);
+  }, [selectedCategory?.id]);
 
   useLayoutEffect(() => {
     const previousCategory = previousCategoryRef.current;
@@ -117,7 +126,11 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
       )}
 
       <div
-        className="graph-viewport"
+        ref={graphViewportRef}
+        className="graph-viewport graph-viewport--interactive"
+        role="region"
+        aria-label="Grafo de referências. Arraste para navegar."
+        tabIndex={0}
       >
         <div className="graph-zoom-layer" style={graphLayerStyle as CSSProperties}>
           <svg className="graph-connections" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
