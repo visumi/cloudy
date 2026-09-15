@@ -87,6 +87,21 @@ describe("ItemGraph", () => {
     expect(onItemSelect).toHaveBeenCalledWith(item);
   });
 
+  it("alterna itens sem abrir detalhes no modo de seleção", async () => {
+    const user = userEvent.setup();
+    const onItemSelect = vi.fn();
+    const onItemToggle = vi.fn();
+    renderGraph({ selectedCategory: category, items: [item], selectionMode: true, selectedItemIds: [item.id], onItemSelect, onItemToggle });
+
+    const itemButton = screen.getByRole("button", { name: "Página de inspiração, coleção Ideias" });
+    expect(itemButton).toHaveAttribute("aria-pressed", "true");
+    expect(itemButton).toHaveClass("item-node--bulk-selected");
+    expect(itemButton.querySelector(".item-node-selection-mark")).toBeInTheDocument();
+    await user.click(itemButton);
+    expect(onItemToggle).toHaveBeenCalledWith(item);
+    expect(onItemSelect).not.toHaveBeenCalled();
+  });
+
   it("exibe detalhes, copia o link e abre o menu de ações", async () => {
     const user = userEvent.setup();
     const onEdit = vi.fn();

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentProps } from "react";
-import { Blocks, CircleUser, LogOut, Plus, Search, Settings, Share2, Tags, type LucideIcon } from "lucide-react";
+import { Blocks, CircleUser, Ellipsis, Hand, LogOut, MousePointer2, MoveRight, Plus, Search, Settings, Share2, Tags, Trash2, type LucideIcon } from "lucide-react";
 import packageJson from "../../../package.json";
 import { Badge } from "../../components/ui/badge";
 import { DropdownMenu, DropdownMenuItem } from "../../components/ui/dropdown-menu";
@@ -13,13 +13,19 @@ interface CloudActionCloudProps {
   onTagsOpen?: () => void;
   onIntegrationsOpen?: () => void;
   onShareOpen?: () => void;
+  selectionMode?: boolean;
+  selectionAvailable?: boolean;
+  selectedCount?: number;
+  onSelectionToggle?: () => void;
+  onBulkMove?: () => void;
+  onBulkDelete?: () => void;
   onSignOut?: () => Promise<void>;
   onMenuOpenChange?: (isOpen: boolean) => void;
   photoURL?: string | null;
   disabled?: boolean;
 }
 
-type CloudMenu = "settings";
+type CloudMenu = "settings" | "bulk";
 
 interface CloudMenuItem {
   icon: LucideIcon;
@@ -30,10 +36,11 @@ const cloudMenus: Record<CloudMenu, { items: CloudMenuItem[]; title: string }> =
   settings: {
     title: "Configurações",
     items: []
-  }
+  },
+  bulk: { title: "Ações em massa", items: [] }
 };
 
-export function CloudActionCloud({ email, name, onAddLink, onSearch, onTagsOpen, onIntegrationsOpen, onShareOpen, onSignOut, onMenuOpenChange, photoURL, disabled = false }: CloudActionCloudProps) {
+export function CloudActionCloud({ email, name, onAddLink, onSearch, onTagsOpen, onIntegrationsOpen, onShareOpen, onSignOut, onMenuOpenChange, photoURL, disabled = false, selectionMode = false, selectionAvailable = false, selectedCount = 0, onSelectionToggle, onBulkMove, onBulkDelete }: CloudActionCloudProps) {
   const [openMenu, setOpenMenu] = useState<CloudMenu | null>(null);
   const [closingMenu, setClosingMenu] = useState<CloudMenu | null>(null);
   const [profileImageFailed, setProfileImageFailed] = useState(false);
@@ -135,12 +142,22 @@ export function CloudActionCloud({ email, name, onAddLink, onSearch, onTagsOpen,
           <Share2 aria-hidden="true" strokeWidth={2.2} />
         </IconButton>
       </div>
-      {renderedMenu && <CloudMenuPanel menu={renderedMenu} id={`cloud-action-menu-${renderedMenu}`} closing={isClosing} email={email} name={name} onAddLink={onAddLink} onTagsOpen={onTagsOpen} onIntegrationsOpen={onIntegrationsOpen} onClose={closeMenu} onSignOut={onSignOut} photoURL={photoURL} profileImageFailed={profileImageFailed} setProfileImageFailed={setProfileImageFailed} onAnimationEnd={(event) => { if (isClosing && event.animationName === "dropdown-menu-close") setClosingMenu(null); }} />}
+      {selectionMode && selectedCount > 0 && <div className="cloud-action-slot cloud-action-slot--bulk">
+        <IconButton tone="settings" label={`Ações para ${selectedCount} ${selectedCount === 1 ? "item" : "itens"} selecionados`} aria-haspopup="menu" aria-expanded={openMenu === "bulk"} aria-controls="cloud-action-menu-bulk" disabled={disabled} onClick={() => toggleMenu("bulk")}>
+          <Ellipsis aria-hidden="true" strokeWidth={2.3} />
+        </IconButton>
+      </div>}
+      {selectionAvailable && <div className="cloud-action-slot cloud-action-slot--selection-toggle">
+        <IconButton tone="settings" className="icon-button--selection-toggle" label={selectionMode ? "Desativar seleção de itens" : "Ativar seleção de itens"} disabled={disabled} aria-pressed={selectionMode} onClick={() => { closeMenu(); onSelectionToggle?.(); }}>
+          {selectionMode ? <Hand aria-hidden="true" strokeWidth={2.1} /> : <MousePointer2 aria-hidden="true" strokeWidth={2.1} />}
+        </IconButton>
+      </div>}
+      {renderedMenu && <CloudMenuPanel menu={renderedMenu} id={`cloud-action-menu-${renderedMenu}`} closing={isClosing} email={email} name={name} onAddLink={onAddLink} onTagsOpen={onTagsOpen} onIntegrationsOpen={onIntegrationsOpen} onClose={closeMenu} onSignOut={onSignOut} photoURL={photoURL} profileImageFailed={profileImageFailed} setProfileImageFailed={setProfileImageFailed} selectedCount={selectedCount} onBulkMove={onBulkMove} onBulkDelete={onBulkDelete} onAnimationEnd={(event) => { if (isClosing && event.animationName === "dropdown-menu-close") setClosingMenu(null); }} />}
     </div>
   );
 }
 
-function CloudMenuPanel({ menu, id, closing, email, name, onAddLink, onTagsOpen, onIntegrationsOpen, onClose, onSignOut, photoURL, profileImageFailed, setProfileImageFailed, onAnimationEnd }: { menu: CloudMenu; id: string; closing: boolean; email?: string | null; name?: string | null; onAddLink?: () => void; onTagsOpen?: () => void; onIntegrationsOpen?: () => void; onClose: () => void; onSignOut?: () => Promise<void>; photoURL?: string | null; profileImageFailed: boolean; setProfileImageFailed: (failed: boolean) => void; onAnimationEnd: ComponentProps<typeof DropdownMenu>["onAnimationEnd"]; }) {
+function CloudMenuPanel({ menu, id, closing, email, name, onAddLink, onTagsOpen, onIntegrationsOpen, onClose, onSignOut, photoURL, profileImageFailed, setProfileImageFailed, selectedCount = 0, onBulkMove, onBulkDelete, onAnimationEnd }: { menu: CloudMenu; id: string; closing: boolean; email?: string | null; name?: string | null; onAddLink?: () => void; onTagsOpen?: () => void; onIntegrationsOpen?: () => void; onClose: () => void; onSignOut?: () => Promise<void>; photoURL?: string | null; profileImageFailed: boolean; setProfileImageFailed: (failed: boolean) => void; selectedCount?: number; onBulkMove?: () => void; onBulkDelete?: () => void; onAnimationEnd: ComponentProps<typeof DropdownMenu>["onAnimationEnd"]; }) {
   const content = cloudMenus[menu];
 
   return (
@@ -167,7 +184,12 @@ function CloudMenuPanel({ menu, id, closing, email, name, onAddLink, onTagsOpen,
           <DropdownMenuItem icon={Blocks} onClick={() => { onClose(); onIntegrationsOpen?.(); }}>Integrações</DropdownMenuItem>
           <DropdownMenuItem icon={LogOut} destructive onClick={() => { onClose(); void onSignOut?.(); }}>Sair</DropdownMenuItem>
         </div>
-      ) : null}
+      ) : (
+        <>
+          <DropdownMenuItem icon={MoveRight} onClick={() => { onClose(); onBulkMove?.(); }}>Mover {selectedCount} {selectedCount === 1 ? "item" : "itens"}</DropdownMenuItem>
+          <DropdownMenuItem icon={Trash2} destructive onClick={() => { onClose(); onBulkDelete?.(); }}>Excluir {selectedCount} {selectedCount === 1 ? "item" : "itens"}</DropdownMenuItem>
+        </>
+      )}
     </DropdownMenu>
   );
 }

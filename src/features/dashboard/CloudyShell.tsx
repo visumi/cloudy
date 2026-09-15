@@ -11,8 +11,9 @@ import { ShareDialog } from "../sharing/ShareDialog";
 import { SharedCategoriesDialog } from "../sharing/SharedCategoriesDialog";
 import { CommandPalette } from "../search/CommandPalette";
 import { ItemDetail } from "../items/ItemGraph";
+import { BulkActionDialog } from "../items/BulkActionDialog";
 import { EMPTY_CATEGORY_COLOR } from "../items/category-colors";
-import type { CategoriesResponse, CategoryRecentItem, CategorySummary, CloudyItem, ItemsResponse } from "../../types/api";
+import type { BulkItemActionPayload, BulkItemActionResponse, CategoriesResponse, CategoryRecentItem, CategorySummary, CloudyItem, ItemsResponse } from "../../types/api";
 
 const CloudMascot = lazy(() => import("./CloudMascot").then(({ CloudMascot: Mascot }) => ({ default: Mascot })));
 const ACTION_CLOUD_IDLE_DELAY = 4200;
@@ -92,6 +93,9 @@ export function CloudyShell() {
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [bulkActionMode, setBulkActionMode] = useState<"move" | "delete" | null>(null);
   const [categoryItems, setCategoryItems] = useState<Record<string, CloudyItem[]>>({});
   const [categoryItemsLoading, setCategoryItemsLoading] = useState(false);
   const [categoryItemsError, setCategoryItemsError] = useState<string | null>(null);
@@ -106,9 +110,9 @@ export function CloudyShell() {
   const itemDialogClosingStartedRef = useRef(false);
   const itemDeleteClosingStartedRef = useRef(false);
   const categoryCacheRefreshGenerationRef = useRef(0);
-  const isActionCloudHidden = useActionCloudIdle(isMenuOpen);
-  const isActionCloudSuppressed = isActionCloudHidden || isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
-  const isModalOpen = isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
+  const isActionCloudHidden = useActionCloudIdle(isMenuOpen || selectionMode);
+  const isActionCloudSuppressed = isActionCloudHidden || bulkActionMode !== null || isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
+  const isModalOpen = bulkActionMode !== null || isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
   const photoURL = user?.photoURL ?? profile?.picture;
   const email = user?.email ?? profile?.email;
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId) ?? null;
@@ -210,6 +214,8 @@ export function CloudyShell() {
   const handleCategoryBack = useCallback(() => {
     categoryRequestId.current += 1;
     setSelectedCategoryId(null);
+    setSelectedItemIds([]);
+    setSelectionMode(false);
     setCategoryItemsLoading(false);
     setCategoryItemsError(null);
   }, []);
@@ -217,6 +223,11 @@ export function CloudyShell() {
   useEffect(() => {
     if (selectedCategoryId && !selectedCategory) handleCategoryBack();
   }, [handleCategoryBack, selectedCategory, selectedCategoryId]);
+
+  useEffect(() => {
+    setSelectedItemIds([]);
+    setSelectionMode(false);
+  }, [selectedCategoryId]);
 
   const handleItemCreated = useCallback((item: CloudyItem) => {
     const categoryId = item.category?.id ?? UNTAGGED_CATEGORY_ID;
@@ -244,6 +255,19 @@ export function CloudyShell() {
     setDetailItem(item);
     setIsItemDetailOpen(true);
   }, []);
+
+  const toggleSelectionMode = useCallback(() => {
+    setSelectionMode((current) => {
+      if (current) setSelectedItemIds([]);
+      return !current;
+    });
+  }, []);
+
+  const toggleItemSelection = useCallback((item: CloudyItem) => {
+    setSelectedItemIds((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id]);
+  }, []);
+
+  const selectedItems = useMemo(() => visibleItems.filter((item) => selectedItemIds.includes(item.id)), [selectedItemIds, visibleItems]);
 
   const startItemAction = useCallback((type: PendingItemAction["type"], item: CloudyItem) => {
     setPendingItemAction({ type, item });
@@ -288,6 +312,32 @@ export function CloudyShell() {
       }).catch(() => undefined);
     }
   }, []);
+
+  const performBulkAction = useCallback(async (payload: BulkItemActionPayload) => {
+    const response = await apiRequest<BulkItemActionResponse>("/items/bulk-actions", { method: "POST", body: JSON.stringify(payload) });
+    const affectedIds = new Set(payload.itemIds);
+    const destinationId = payload.action === "move" ? (payload.categoryId ?? UNTAGGED_CATEGORY_ID) : null;
+    invalidateItemRequests();
+    setCategories(response.categories);
+    setCategoryItems((current) => {
+      const next = { ...current };
+      const sourceId = payload.sourceCategoryId;
+      if (Object.prototype.hasOwnProperty.call(next, sourceId)) next[sourceId] = next[sourceId].filter((item) => !affectedIds.has(item.id));
+      if (destinationId && Object.prototype.hasOwnProperty.call(next, destinationId)) next[destinationId] = sortUniqueItems([...next[destinationId].filter((item) => !affectedIds.has(item.id)), ...response.items]);
+      return next;
+    });
+    if (searchItemsLoadedRef.current) setSearchItems((current) => payload.action === "delete" ? current.filter((item) => !affectedIds.has(item.id)) : sortUniqueItems([...current.filter((item) => !affectedIds.has(item.id)), ...response.items]));
+    setBulkActionMode(null);
+    setSelectedItemIds([]);
+    setSelectionMode(false);
+    showSavedMessage(setSavedMessage, payload.action === "delete" ? `${payload.itemIds.length} ${payload.itemIds.length === 1 ? "item excluído" : "itens excluídos"} da sua nuvem.` : `${payload.itemIds.length} ${payload.itemIds.length === 1 ? "item movido" : "itens movidos"}.`);
+    void loadCategories({ background: true });
+    revalidateLoadedCategoryItems(Object.keys(categoryItems));
+    if (searchItemsLoadedRef.current) void loadSearchItems({ background: true, force: true });
+  }, [categoryItems, invalidateItemRequests, loadCategories, loadSearchItems, revalidateLoadedCategoryItems]);
+
+  const openBulkMove = useCallback(() => { if (selectedItems.length > 0) setBulkActionMode("move"); }, [selectedItems.length]);
+  const openBulkDelete = useCallback(() => { if (selectedItems.length > 0) setBulkActionMode("delete"); }, [selectedItems.length]);
 
   const reconcileItemMutation = useCallback((previousItem: CloudyItem, nextItem: CloudyItem | null) => {
     const shouldRefreshSearch = searchItemsLoadedRef.current || searchItemsPendingRequestId.current !== null;
@@ -394,6 +444,9 @@ export function CloudyShell() {
           onCategorySelect={(categoryId) => void loadCategoryItems(categoryId)}
           onCategoryBack={handleCategoryBack}
           onItemSelect={openItemDetail}
+          selectionMode={selectionMode}
+          selectedItemIds={selectedItemIds}
+          onItemToggle={toggleItemSelection}
           activeItemId={detailItem?.id}
         >
           <Suspense fallback={<div className="cloud-mascot" aria-hidden="true" />}>
@@ -402,9 +455,10 @@ export function CloudyShell() {
         </ItemGraph>
       </section>
       <aside className={`action-cloud-dock${isActionCloudSuppressed ? " action-cloud-dock--hidden" : ""}`} aria-label="Ações do Cloudy" aria-hidden={isActionCloudSuppressed}>
-        <CloudActionCloud email={email} name={profile?.name} onMenuOpenChange={setIsMenuOpen} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} onAddLink={() => { setEditingItem(null); setIsItemDialogOpen(true); }} onSearch={openSearch} onTagsOpen={() => setIsTagManagerOpen(true)} onIntegrationsOpen={() => setIsIntegrationDialogOpen(true)} onShareOpen={() => setIsShareDialogOpen(true)} />
+        <CloudActionCloud email={email} name={profile?.name} onMenuOpenChange={setIsMenuOpen} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} selectionAvailable={selectedCategory !== null} selectionMode={selectionMode} selectedCount={selectedItemIds.length} onSelectionToggle={toggleSelectionMode} onBulkMove={openBulkMove} onBulkDelete={openBulkDelete} onAddLink={() => { setEditingItem(null); setIsItemDialogOpen(true); }} onSearch={openSearch} onTagsOpen={() => setIsTagManagerOpen(true)} onIntegrationsOpen={() => setIsIntegrationDialogOpen(true)} onShareOpen={() => setIsShareDialogOpen(true)} />
       </aside>
       {savedMessage && <p className="workspace-toast" role="status">{savedMessage}</p>}
+      <BulkActionDialog open={bulkActionMode !== null} mode={bulkActionMode ?? "move"} items={selectedItems} sourceCategory={selectedCategory ?? { id: "", name: "", color: "", itemCount: 0, recentItems: [] }} categories={categories} onClose={() => setBulkActionMode(null)} onConfirm={(categoryId) => performBulkAction(bulkActionMode === "delete" ? { action: "delete", itemIds: selectedItemIds, sourceCategoryId: selectedCategoryId ?? "" } : { action: "move", itemIds: selectedItemIds, sourceCategoryId: selectedCategoryId ?? "", categoryId: categoryId === "__untagged__" ? null : categoryId ?? null })} />
       <ItemDialog open={isItemDialogOpen} item={editingItem} categoryOptions={managedCategories} onClose={() => setIsItemDialogOpen(false)} onSaved={handleItemSaved} onClosingChange={handleItemDialogClosingChange} />
       <ItemDeleteDialog open={isItemDeleteOpen} item={deletingItem} onClose={() => setIsItemDeleteOpen(false)} onDeleted={handleItemDeleted} onClosingChange={handleItemDeleteClosingChange} />
       <TagManagerDialog open={isTagManagerOpen} categories={managedCategories} onClose={() => setIsTagManagerOpen(false)} onCategoriesChange={handleCategoriesChange} />

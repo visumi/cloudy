@@ -86,6 +86,11 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 .icon-button--share { z-index: 1; color: var(--sky-700); }
 .icon-button--share svg { width: 22px; height: 22px; transform-box: fill-box; transform-origin: center; }
 .icon-button--share:hover svg { animation: share-shake 420ms ease-in-out; }
+.action-cloud > .cloud-action-slot--selection-toggle, .action-cloud > .cloud-action-slot--bulk { position: absolute; top: 50%; margin-left: 0; transform: translateY(-50%); }
+.action-cloud > .cloud-action-slot--selection-toggle { right: 0; z-index: 2; }
+.action-cloud > .cloud-action-slot--bulk { right: 68px; z-index: 2; }
+.icon-button--selection-toggle svg { width: 24px; height: 24px; }
+.action-cloud-dock--hidden .action-cloud > .cloud-action-slot--selection-toggle, .action-cloud-dock--hidden .action-cloud > .cloud-action-slot--bulk { transform: translateY(calc(100% + var(--action-cloud-bottom-space))); }
 .dropdown-menu { --dropdown-menu-x: -50%; position: absolute; bottom: calc(100% + 14px); left: 50%; z-index: 30; width: min(214px, calc(100vw - 24px)); padding: 10px; border: 1px solid #bae6fd; border-radius: 18px; color: var(--sky-900); background: #f0f9ff; box-shadow: 0 18px 36px oklch(0.08 0.04 245 / .25), inset 0 1px 0 white; transform: translateX(var(--dropdown-menu-x)); transform-origin: bottom center; animation: dropdown-menu-open 220ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 .dropdown-menu--closing { pointer-events: none; animation: dropdown-menu-close 160ms ease-in both; }
 .dropdown-menu-items { display: grid; gap: 3px; }
@@ -417,6 +422,9 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 .item-node:hover { border-color: oklch(0.7 0.12 235); box-shadow: 0 16px 32px oklch(0.08 0.04 245 / .23), inset 0 1px 0 white; transform: translate(-50%, calc(-50% - 4px)) scale(1.025); }
 .item-node:focus-visible { outline: 3px solid oklch(0.78 0.13 235); outline-offset: 4px; }
 .item-node--selected { border-color: var(--sky-700); box-shadow: 0 16px 32px oklch(0.08 0.04 245 / .28), 0 0 0 3px oklch(0.72 0.12 235 / .28); }
+.item-node--bulk-selected { border-color: var(--sky-700); box-shadow: 0 16px 32px oklch(0.08 0.04 245 / .28), 0 0 0 3px oklch(0.72 0.12 235 / .28); }
+.item-node-selection-mark { position: absolute; top: -8px; right: -8px; display: grid; width: 22px; height: 22px; place-items: center; border: 2px solid white; border-radius: 50%; color: white; background: var(--sky-700); box-shadow: 0 4px 10px oklch(0.08 0.04 245 / .22); }
+.item-node-selection-mark svg { width: 13px; height: 13px; stroke-width: 3; }
 .item-node-image { width: 38px; height: 38px; flex: 0 0 auto; border-radius: 10px; object-fit: cover; background: #dbeafe; transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1); }
 .item-node-copy { display: grid; min-width: 0; gap: 3px; overflow: hidden; transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1); }
 .item-node:hover .item-node-image, .item-node:focus-visible .item-node-image { transform: scale(1.07) rotate(-2deg); }
@@ -488,6 +496,15 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 .item-delete-confirm:hover { color: white; background: #991b1b; }
 .item-delete-confirm:focus-visible { outline-color: var(--red-700); }
 .item-delete-confirm svg { width: 16px; height: 16px; }
+.bulk-action-dialog { max-height: min(86dvh, 620px); }
+.bulk-action-dialog .item-delete-heading-icon { color: var(--sky-700); background: #e0f2fe; }
+.bulk-destination-list { display: grid; max-height: 280px; gap: 5px; overflow-y: auto; padding: 2px; }
+.bulk-destination { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid transparent; border-radius: 11px; padding: 0 12px; color: var(--sky-900); background: white; cursor: pointer; text-align: left; transition: var(--control-transition); }
+.bulk-destination:hover, .bulk-destination:focus-visible { border-color: #bae6fd; background: #e0f2fe; outline: none; }
+.bulk-destination--selected { border-color: var(--sky-700); background: #e0f2fe; }
+.bulk-destination:disabled { cursor: not-allowed; opacity: .52; }
+.bulk-destination svg { width: 17px; height: 17px; color: var(--sky-700); }
+.bulk-destination-empty, .bulk-action-warning { margin: 0; color: #64748b; font-size: .78rem; line-height: 1.4; }
 .item-dialog-heading { margin-bottom: 18px; }
 .item-dialog form { display: grid; min-height: 0; flex: 1 1 auto; gap: 8px; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; scrollbar-gutter: stable; }
 .field-label { margin-top: 8px; color: var(--sky-900); font-size: .78rem; font-weight: 750; }

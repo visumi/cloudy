@@ -80,6 +80,16 @@ export interface CategoryInput {
   color: string;
 }
 
+export type BulkItemActionInput =
+  | { action: "move"; itemIds: string[]; sourceCategoryId: string; categoryId: string | null }
+  | { action: "delete"; itemIds: string[]; sourceCategoryId: string };
+
+export interface BulkItemActionResult {
+  items: ItemRecord[];
+  deletedIds: string[];
+  categories: CategoryRecord[];
+}
+
 export async function listCategories(db: Client, userId: string): Promise<CategoryRecord[]> {
   const result = await db.execute({
     sql: `SELECT c.id, c.name, c.color, COUNT(i.id) AS item_count
@@ -325,6 +335,50 @@ export async function deleteItem(db: Client, userId: string, itemId: string): Pr
     args: [itemId, userId]
   });
   return { id: itemId };
+}
+
+export async function bulkItemAction(db: Client, userId: string, payload: unknown): Promise<BulkItemActionResult> {
+  const input = parseBulkItemActionInput(payload);
+  const transaction = await db.transaction("write");
+  try {
+    const placeholders = input.itemIds.map(() => "?").join(", ");
+    const currentResult = await transaction.execute({
+      sql: `SELECT id, category_id, system_category FROM items WHERE user_id = ? AND id IN (${placeholders})`,
+      args: [userId, ...input.itemIds]
+    });
+    const rows = currentResult.rows as DbRow[];
+    if (rows.length !== input.itemIds.length) throw new HttpError(404, "item_not_found");
+    const sourceIds = new Set(rows.map((row) => readNullableString(row, "system_category") === "integrations" ? INTEGRATIONS_CATEGORY_ID : readNullableString(row, "category_id") ?? UNTAGGED_CATEGORY_ID));
+    if (sourceIds.size !== 1 || !sourceIds.has(input.sourceCategoryId)) throw new HttpError(409, "items_changed");
+
+    if (input.action === "delete") {
+      await transaction.execute({ sql: `DELETE FROM items WHERE user_id = ? AND id IN (${placeholders})`, args: [userId, ...input.itemIds] });
+    } else {
+      if (input.categoryId === INTEGRATIONS_CATEGORY_ID) throw new HttpError(403, "system_category");
+      const destinationCategoryId = input.categoryId;
+      if (destinationCategoryId) {
+        const category = await transaction.execute({ sql: "SELECT id FROM categories WHERE id = ? AND user_id = ? LIMIT 1", args: [destinationCategoryId, userId] });
+        if (category.rows.length === 0) throw new HttpError(404, "category_not_found");
+      }
+      const countResult = await transaction.execute({
+        sql: destinationCategoryId
+          ? "SELECT COUNT(*) AS item_count FROM items WHERE user_id = ? AND category_id = ?"
+          : "SELECT COUNT(*) AS item_count FROM items WHERE user_id = ? AND category_id IS NULL AND system_category IS NULL",
+        args: destinationCategoryId ? [userId, destinationCategoryId] : [userId]
+      });
+      if (readDbCount(countResult.rows[0], "item_count") + input.itemIds.length > MAX_ITEMS_PER_CATEGORY) throw new HttpError(400, "category_item_limit_reached");
+      await transaction.execute({
+        sql: `UPDATE items SET category_id = ?, system_category = NULL, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND id IN (${placeholders})`,
+        args: [destinationCategoryId, userId, ...input.itemIds]
+      });
+    }
+    await transaction.commit();
+  } finally {
+    transaction.close();
+  }
+
+  const allItems = input.action === "move" ? await listItems(db, userId) : [];
+  return { items: allItems.filter((item) => input.itemIds.includes(item.id)), deletedIds: input.action === "delete" ? input.itemIds : [], categories: await listCategories(db, userId) };
 }
 
 export interface IntegrationItemInput {
@@ -580,6 +634,21 @@ async function getCategory(db: Client, userId: string, categoryId: string): Prom
   if (!row) throw new HttpError(404, "category_not_found");
   const category = mapCategoryRow(row);
   return { ...category, recentItems: (await listRecentItemsForCategory(db, userId, categoryId)) };
+}
+
+export function parseBulkItemActionInput(payload: unknown): BulkItemActionInput {
+  const source = readObject(payload);
+  const action = source.action;
+  if (action !== "move" && action !== "delete") throw new HttpError(400, "invalid_bulk_action");
+  if (!Array.isArray(source.itemIds) || source.itemIds.length < 1 || source.itemIds.length > MAX_ITEMS_PER_CATEGORY) throw new HttpError(400, "invalid_item_ids");
+  const itemIds = source.itemIds.map((value) => normalizeText(readRequiredString(value, "item_id")));
+  if (itemIds.some((value) => !value) || new Set(itemIds).size !== itemIds.length) throw new HttpError(400, "invalid_item_ids");
+  const sourceCategoryId = normalizeText(readRequiredString(source.sourceCategoryId, "source_category_id"));
+  if (!sourceCategoryId) throw new HttpError(400, "invalid_source_category_id");
+  if (action === "delete") return { action, itemIds, sourceCategoryId };
+  const categoryId = source.categoryId == null ? null : normalizeText(readRequiredString(source.categoryId, "category_id"));
+  if (categoryId === "") throw new HttpError(400, "invalid_category_id");
+  return { action, itemIds, sourceCategoryId, categoryId };
 }
 
 async function getItem(db: Client, userId: string, itemId: string): Promise<ItemRecord> {

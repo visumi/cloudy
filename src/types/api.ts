@@ -57,6 +57,16 @@ export interface ItemsResponse {
   items: CloudyItem[];
 }
 
+export type BulkItemActionPayload =
+  | { action: "move"; itemIds: string[]; sourceCategoryId: string; categoryId: string | null }
+  | { action: "delete"; itemIds: string[]; sourceCategoryId: string };
+
+export interface BulkItemActionResponse {
+  items: CloudyItem[];
+  deletedIds: string[];
+  categories: CategorySummary[];
+}
+
 export interface SharedCategorySummary {
   id: string;
   name: string;

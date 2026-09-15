@@ -84,6 +84,16 @@ describe("API base", () => {
     expect(deleteItem).toHaveBeenCalledWith(expect.anything(), "uid-1", "item-1");
   });
 
+  it("encaminha ações em massa para itens autenticados", async () => {
+    const bulkItemAction = vi.fn(async () => ({ items: [], deletedIds: ["item-1"], categories: [] }));
+    const dependencies: RequestDependencies = { authenticate: vi.fn(async () => identity), createDatabaseClient: vi.fn(() => ({} as never)), resolveAuthenticatedUser: vi.fn(async () => profile), upsertUser: vi.fn(), listItems: vi.fn(), createItem: vi.fn(), bulkItemAction, previewItem: vi.fn() };
+    const payload = { action: "delete", itemIds: ["item-1"], sourceCategoryId: "category-1" };
+    const response = await handleRequest(new Request("https://cloudy-api.isumi.com.br/items/bulk-actions", { method: "POST", headers: { Authorization: "Bearer test", "Content-Type": "application/json" }, body: JSON.stringify(payload) }), env, dependencies);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ items: [], deletedIds: ["item-1"], categories: [] });
+    expect(bulkItemAction).toHaveBeenCalledWith(expect.anything(), "uid-1", payload);
+  });
+
   it("cria item pelo token restrito do Atalho", async () => {
     const createIntegrationItem = vi.fn(async () => ({ item: { id: "item-1" }, duplicate: false }));
     const authenticateShortcutToken = vi.fn(async () => ({ id: "token-1", userId: "uid-1" }));

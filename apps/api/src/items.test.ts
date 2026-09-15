@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Client } from "@libsql/client/web";
-import { createCategory, createIntegrationItem, createItem, deleteCategory, deleteItem, listCategories, listCategoryItems, parseCategoryInput, parseCreateItemInput, parseIntegrationItemInput, parseUpdateItemInput, resolveLinkPreview, UNTAGGED_CATEGORY_ID, INTEGRATIONS_CATEGORY_ID, updateCategory, updateItem } from "./items";
+import { bulkItemAction, createCategory, createIntegrationItem, createItem, deleteCategory, deleteItem, listCategories, listCategoryItems, parseBulkItemActionInput, parseCategoryInput, parseCreateItemInput, parseIntegrationItemInput, parseUpdateItemInput, resolveLinkPreview, UNTAGGED_CATEGORY_ID, INTEGRATIONS_CATEGORY_ID, updateCategory, updateItem } from "./items";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -284,6 +284,28 @@ describe("link preview", () => {
 });
 
 describe("item mutations", () => {
+  it("valida ações em massa e limita a seleção à capacidade da categoria", () => {
+    expect(parseBulkItemActionInput({ action: "move", itemIds: ["item-1", "item-2"], sourceCategoryId: "category-1", categoryId: null })).toEqual({ action: "move", itemIds: ["item-1", "item-2"], sourceCategoryId: "category-1", categoryId: null });
+    expect(parseBulkItemActionInput({ action: "delete", itemIds: ["item-1"], sourceCategoryId: "__integrations__" })).toEqual({ action: "delete", itemIds: ["item-1"], sourceCategoryId: "__integrations__" });
+    expect(() => parseBulkItemActionInput({ action: "move", itemIds: ["item-1", "item-1"], sourceCategoryId: "category-1", categoryId: "category-2" })).toThrowError("invalid_item_ids");
+    expect(() => parseBulkItemActionInput({ action: "move", itemIds: [], sourceCategoryId: "category-1", categoryId: "category-2" })).toThrowError("invalid_item_ids");
+  });
+
+  it("executa a movimentação em uma transação e bloqueia destino Integrações", async () => {
+    const execute = vi.fn(async (statement: { sql: string }) => {
+      if (statement.sql.includes("SELECT id, category_id, system_category")) return { rows: [{ id: "item-1", category_id: "category-1", system_category: null }] };
+      if (statement.sql.includes("SELECT id FROM categories")) return { rows: [{ id: "category-2" }] };
+      if (statement.sql.includes("SELECT COUNT(*) AS item_count")) return { rows: [{ item_count: 0 }] };
+      return { rows: [] };
+    });
+    const transaction = { execute, commit: vi.fn(async () => undefined), close: vi.fn() };
+    const db = { transaction: vi.fn(async () => transaction), execute } as never;
+
+    await expect(bulkItemAction(db, "user-1", { action: "move", itemIds: ["item-1"], sourceCategoryId: "category-1", categoryId: "category-2" })).resolves.toMatchObject({ deletedIds: [] });
+    expect(transaction.commit).toHaveBeenCalledOnce();
+    await expect(bulkItemAction(db, "user-1", { action: "move", itemIds: ["item-1"], sourceCategoryId: "category-1", categoryId: INTEGRATIONS_CATEGORY_ID })).rejects.toThrowError("system_category");
+  });
+
   it("valida o payload completo de edição", () => {
     expect(parseUpdateItemInput({ name: "  Nova referência  ", url: "", observation: "  Nota curta  ", categoryId: null })).toEqual({
       name: "Nova referência",

@@ -48,6 +48,9 @@ interface ItemGraphProps {
   onCategorySelect: (categoryId: string) => void;
   onCategoryBack: () => void;
   onItemSelect: (item: CloudyItem) => void;
+  selectionMode?: boolean;
+  selectedItemIds?: string[];
+  onItemToggle?: (item: CloudyItem) => void;
   activeItemId?: string | null;
   children: ReactNode;
 }
@@ -58,7 +61,7 @@ const OVERVIEW_GRAPH_TRANSITION_DURATION = 320;
 
 type GraphViewTransition = "overview" | "to-category" | "category" | "to-overview";
 
-export function ItemGraph({ categories, items, selectedCategory, isLoading, error, onRetry, onAddLink, onCategorySelect, onCategoryBack, onItemSelect, activeItemId = null, children }: ItemGraphProps) {
+export function ItemGraph({ categories, items, selectedCategory, isLoading, error, onRetry, onAddLink, onCategorySelect, onCategoryBack, onItemSelect, selectionMode = false, selectedItemIds = [], onItemToggle, activeItemId = null, children }: ItemGraphProps) {
   const categoryLayout = useMemo(() => buildCategoryGraphLayout(categories), [categories]);
   const itemLayout = useMemo(() => buildCategoryItemGraphLayout(items), [items]);
   const isCategoryView = selectedCategory !== null;
@@ -160,14 +163,15 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
           <div key={`items-${selectedCategory?.id ?? "overview"}`} className={`graph-nodes graph-nodes--items${items.length > 20 ? " graph-nodes--dense" : ""}`} data-state={itemNodesState} aria-hidden={itemNodesState === "hidden" || itemNodesState === "exiting"} aria-label={selectedCategory ? `Itens de ${selectedCategory.name}` : "Itens da coleção"}>
             {itemLayout.nodes.map(({ item, left, top }, index) => (
               <button
-                className={`item-node${activeItemId === item.id ? " item-node--selected" : ""}`}
+                className={`item-node${activeItemId === item.id ? " item-node--selected" : ""}${selectedItemIds.includes(item.id) ? " item-node--bulk-selected" : ""}`}
                 key={item.id}
                 type="button"
                 style={{ left: `${left}%`, top: `${top}%`, zIndex: items.length - index, "--graph-delay": `${Math.min(index, 7) * 12}ms`, "--graph-card-alpha": items.length > 20 ? (index % 4 === 1 ? ".72" : index % 4 === 2 ? ".84" : ".9") : ".94" } as CSSProperties}
                 aria-label={`${item.name}, ${item.category ? `coleção ${item.category.name}` : "coleção Vazio"}`}
-                aria-pressed={activeItemId === item.id}
-                onClick={() => onItemSelect(item)}
+                aria-pressed={selectionMode ? selectedItemIds.includes(item.id) : activeItemId === item.id}
+                onClick={() => selectionMode ? onItemToggle?.(item) : onItemSelect(item)}
               >
+                {selectionMode && selectedItemIds.includes(item.id) && <span className="item-node-selection-mark" aria-hidden="true"><Check /></span>}
                 <FallbackImage src={item.imageUrl} alt="" className="item-node-image" loading="lazy" />
                 <span className="item-node-copy">
                   <strong>{item.name}</strong>
