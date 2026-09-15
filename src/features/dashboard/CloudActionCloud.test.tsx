@@ -93,4 +93,21 @@ describe("CloudActionCloud", () => {
       vi.useRealTimers();
     }
   });
+
+  it("anima a entrada e a saída das ações em massa", () => {
+    vi.useFakeTimers();
+    try {
+      const { rerender } = render(<CloudActionCloud selectionMode selectedCount={2} />);
+      const bulkButton = screen.getByRole("button", { name: "Ações para 2 itens selecionados" });
+
+      expect(bulkButton.parentElement).toHaveClass("cloud-action-slot--bulk");
+      rerender(<CloudActionCloud selectionMode={false} selectedCount={0} />);
+
+      expect(bulkButton.parentElement).toHaveClass("cloud-action-slot--bulk-closing");
+      act(() => vi.advanceTimersByTime(180));
+      expect(screen.queryByRole("button", { name: /Ações para/ })).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

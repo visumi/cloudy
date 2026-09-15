@@ -45,6 +45,9 @@ export function CloudActionCloud({ email, name, onAddLink, onSearch, onTagsOpen,
   const [closingMenu, setClosingMenu] = useState<CloudMenu | null>(null);
   const [selectionToggleMounted, setSelectionToggleMounted] = useState(selectionAvailable);
   const [selectionToggleClosing, setSelectionToggleClosing] = useState(false);
+  const bulkActionAvailable = selectionMode && selectedCount > 0;
+  const [bulkActionMounted, setBulkActionMounted] = useState(bulkActionAvailable);
+  const [bulkActionClosing, setBulkActionClosing] = useState(false);
   const [profileImageFailed, setProfileImageFailed] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -91,6 +94,21 @@ export function CloudActionCloud({ email, name, onAddLink, onSearch, onTagsOpen,
     }, 220);
     return () => window.clearTimeout(timeoutId);
   }, [selectionAvailable, selectionToggleMounted]);
+
+  useEffect(() => {
+    if (bulkActionAvailable) {
+      setBulkActionMounted(true);
+      setBulkActionClosing(false);
+      return;
+    }
+    if (!bulkActionMounted) return;
+    setBulkActionClosing(true);
+    const timeoutId = window.setTimeout(() => {
+      setBulkActionMounted(false);
+      setBulkActionClosing(false);
+    }, 180);
+    return () => window.clearTimeout(timeoutId);
+  }, [bulkActionAvailable, bulkActionMounted]);
 
   useEffect(() => {
     if (!openMenu || !menuRef.current) return;
@@ -159,8 +177,8 @@ export function CloudActionCloud({ email, name, onAddLink, onSearch, onTagsOpen,
           <Share2 aria-hidden="true" strokeWidth={2.2} />
         </IconButton>
       </div>
-      {selectionMode && selectedCount > 0 && <div className="cloud-action-slot cloud-action-slot--bulk">
-        <IconButton tone="settings" label={`Ações para ${selectedCount} ${selectedCount === 1 ? "item" : "itens"} selecionados`} aria-haspopup="menu" aria-expanded={openMenu === "bulk"} aria-controls="cloud-action-menu-bulk" disabled={disabled} onClick={() => toggleMenu("bulk")}>
+      {bulkActionMounted && <div className={`cloud-action-slot cloud-action-slot--bulk${bulkActionClosing ? " cloud-action-slot--bulk-closing" : ""}`}>
+        <IconButton tone="settings" className="icon-button--bulk" label={`Ações para ${selectedCount} ${selectedCount === 1 ? "item" : "itens"} selecionados`} aria-haspopup="menu" aria-expanded={openMenu === "bulk"} aria-controls="cloud-action-menu-bulk" disabled={disabled} onClick={() => toggleMenu("bulk")}>
           <Ellipsis aria-hidden="true" strokeWidth={2.3} />
         </IconButton>
       </div>}
