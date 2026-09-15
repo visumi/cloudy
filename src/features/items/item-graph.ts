@@ -49,7 +49,7 @@ export function buildCategoryGraphLayout(categories: CategorySummary[]): Categor
   const nodes: CategoryGraphNode[] = [];
   const ringCount = userCategories.length > 11 ? 2 : 1;
   const outerCount = ringCount === 1 ? userCategories.length : Math.ceil(userCategories.length / 2);
-  const usesBalancedIntegrationRing = systemCategories.length > 0 && (categories.length === 9 || categories.length === 10);
+  const usesBalancedIntegrationRing = systemCategories.length > 0 && (userCategories.length === 9 || userCategories.length === 10);
 
   userCategories.forEach((category, index) => {
     const ring = ringCount === 1 || index < outerCount ? 0 : 1;
