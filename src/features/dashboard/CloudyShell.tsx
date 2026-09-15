@@ -62,6 +62,7 @@ export function CloudyShell() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [bulkActionMode, setBulkActionMode] = useState<"move" | "delete" | null>(null);
+  const [isBulkActionClosing, setIsBulkActionClosing] = useState(false);
   const [categoryItems, setCategoryItems] = useState<Record<string, CloudyItem[]>>({});
   const [categoryItemsLoading, setCategoryItemsLoading] = useState(false);
   const [categoryItemsError, setCategoryItemsError] = useState<string | null>(null);
@@ -76,8 +77,8 @@ export function CloudyShell() {
   const itemDialogClosingStartedRef = useRef(false);
   const itemDeleteClosingStartedRef = useRef(false);
   const categoryCacheRefreshGenerationRef = useRef(0);
-  const isActionCloudSuppressed = bulkActionMode !== null || isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
-  const isModalOpen = bulkActionMode !== null || isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
+  const isActionCloudSuppressed = bulkActionMode !== null || isBulkActionClosing || isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
+  const isModalOpen = bulkActionMode !== null || isBulkActionClosing || isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
   const photoURL = user?.photoURL ?? profile?.picture;
   const email = user?.email ?? profile?.email;
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId) ?? null;
@@ -373,6 +374,10 @@ export function CloudyShell() {
     if (returnItem) openItemDetail(returnItem);
   }, [deletingItem, openItemDetail]);
 
+  const handleBulkActionClosingChange = useCallback((closing: boolean) => {
+    setIsBulkActionClosing(closing);
+  }, []);
+
   const handleCategoriesChange = useCallback((nextCategories: CategorySummary[]) => {
     const reservedCategories = categories.filter((category) => category.isVirtual || category.isSystem);
     const next = sortCategories([...nextCategories.filter((category) => !category.isVirtual && !category.isSystem), ...reservedCategories]);
@@ -428,7 +433,7 @@ export function CloudyShell() {
         <CloudActionCloud email={email} name={profile?.name} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} selectionAvailable={selectedCategory !== null} selectionMode={selectionMode} selectedCount={selectedItemIds.length} onSelectionToggle={toggleSelectionMode} onSelectAll={selectAllItems} onBulkMove={openBulkMove} onBulkDelete={openBulkDelete} onAddLink={() => { setEditingItem(null); setIsItemDialogOpen(true); }} onSearch={openSearch} onTagsOpen={() => setIsTagManagerOpen(true)} onIntegrationsOpen={() => setIsIntegrationDialogOpen(true)} onShareOpen={() => setIsShareDialogOpen(true)} />
       </aside>
       {savedMessage && <p className="workspace-toast" role="status">{savedMessage}</p>}
-      <BulkActionDialog open={bulkActionMode !== null} mode={bulkActionMode ?? "move"} items={selectedItems} sourceCategory={selectedCategory ?? { id: "", name: "", color: "", itemCount: 0, recentItems: [] }} categories={categories} onClose={() => setBulkActionMode(null)} onConfirm={(categoryId) => performBulkAction(bulkActionMode === "delete" ? { action: "delete", itemIds: selectedItemIds, sourceCategoryId: selectedCategoryId ?? "" } : { action: "move", itemIds: selectedItemIds, sourceCategoryId: selectedCategoryId ?? "", categoryId: categoryId === "__untagged__" ? null : categoryId ?? null })} />
+      <BulkActionDialog open={bulkActionMode !== null} mode={bulkActionMode ?? "move"} items={selectedItems} sourceCategory={selectedCategory ?? { id: "", name: "", color: "", itemCount: 0, recentItems: [] }} categories={categories} onClose={() => setBulkActionMode(null)} onConfirm={(categoryId) => performBulkAction(bulkActionMode === "delete" ? { action: "delete", itemIds: selectedItemIds, sourceCategoryId: selectedCategoryId ?? "" } : { action: "move", itemIds: selectedItemIds, sourceCategoryId: selectedCategoryId ?? "", categoryId: categoryId === "__untagged__" ? null : categoryId ?? null })} onClosingChange={handleBulkActionClosingChange} />
       <ItemDialog open={isItemDialogOpen} item={editingItem} categoryOptions={managedCategories} onClose={() => setIsItemDialogOpen(false)} onSaved={handleItemSaved} onClosingChange={handleItemDialogClosingChange} />
       <ItemDeleteDialog open={isItemDeleteOpen} item={deletingItem} onClose={() => setIsItemDeleteOpen(false)} onDeleted={handleItemDeleted} onClosingChange={handleItemDeleteClosingChange} />
       <TagManagerDialog open={isTagManagerOpen} categories={managedCategories} onClose={() => setIsTagManagerOpen(false)} onCategoriesChange={handleCategoriesChange} />
