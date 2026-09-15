@@ -10,6 +10,20 @@ export interface MeResponse {
   role: AccessRole | null;
 }
 
+export interface AccessUser {
+  email: string;
+  role: AccessRole;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    uid: string;
+    name: string | null;
+    picture: string | null;
+    lastLoginAt: string | null;
+  } | null;
+}
+
 export interface ItemPreview {
   title: string | null;
   imageUrl: string | null;

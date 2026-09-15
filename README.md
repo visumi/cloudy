@@ -27,6 +27,10 @@ O Worker usa os segredos `TURSO_URL`, `TURSO_AUTH_TOKEN`, `FIREBASE_PROJECT_ID` 
 
 Crie um projeto separado para o Cloudy, habilite Google em Authentication, cadastre um app Web e autorize `localhost` e `cloudy.isumi.com.br`.
 
+## Gestão de acessos
+
+Os e-mails definidos em `OWNER_EMAIL` são proprietários e podem abrir **Configurações → Acessos** para liberar ou desativar membros. Separe múltiplos proprietários por vírgula. Usuários autorizados entram com a conta Google cadastrada e mantêm categorias e itens isolados em sua própria nuvem.
+
 ## Publicação
 
 - Frontend: GitHub Pages em `cloudy.isumi.com.br`.

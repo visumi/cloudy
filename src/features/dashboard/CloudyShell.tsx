@@ -7,6 +7,7 @@ import { ItemDeleteDialog } from "../items/ItemDeleteDialog";
 import { ItemGraph } from "../items/ItemGraph";
 import { TagManagerDialog } from "../settings/TagManagerDialog";
 import { IntegrationDialog } from "../settings/IntegrationDialog";
+import { AccessAdminDialog } from "../settings/AccessAdminDialog";
 import { ShareDialog } from "../sharing/ShareDialog";
 import { SharedCategoriesDialog } from "../sharing/SharedCategoriesDialog";
 import { CommandPalette } from "../search/CommandPalette";
@@ -47,6 +48,8 @@ export function CloudyShell() {
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [isIntegrationDialogOpen, setIsIntegrationDialogOpen] = useState(false);
   const [isIntegrationDialogClosing, setIsIntegrationDialogClosing] = useState(false);
+  const [isAccessAdminOpen, setIsAccessAdminOpen] = useState(false);
+  const [isAccessAdminClosing, setIsAccessAdminClosing] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isShareDialogClosing, setIsShareDialogClosing] = useState(false);
   const [sharedShareId, setSharedShareId] = useState<string | null>(null);
@@ -77,8 +80,8 @@ export function CloudyShell() {
   const itemDialogClosingStartedRef = useRef(false);
   const itemDeleteClosingStartedRef = useRef(false);
   const categoryCacheRefreshGenerationRef = useRef(0);
-  const isActionCloudSuppressed = bulkActionMode !== null || isBulkActionClosing || isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
-  const isModalOpen = bulkActionMode !== null || isBulkActionClosing || isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
+  const isActionCloudSuppressed = bulkActionMode !== null || isBulkActionClosing || isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isAccessAdminOpen || isAccessAdminClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
+  const isModalOpen = bulkActionMode !== null || isBulkActionClosing || isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isAccessAdminOpen || isAccessAdminClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
   const photoURL = user?.photoURL ?? profile?.picture;
   const email = user?.email ?? profile?.email;
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId) ?? null;
@@ -430,7 +433,7 @@ export function CloudyShell() {
         </ItemGraph>
       </section>
       <aside className={`action-cloud-dock${isActionCloudSuppressed ? " action-cloud-dock--hidden" : ""}`} aria-label="Ações do Cloudy" aria-hidden={isActionCloudSuppressed}>
-        <CloudActionCloud email={email} name={profile?.name} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} selectionAvailable={selectedCategory !== null} selectionMode={selectionMode} selectedCount={selectedItemIds.length} onSelectionToggle={toggleSelectionMode} onSelectAll={selectAllItems} onBulkMove={openBulkMove} onBulkDelete={openBulkDelete} onAddLink={() => { setEditingItem(null); setIsItemDialogOpen(true); }} onSearch={openSearch} onTagsOpen={() => setIsTagManagerOpen(true)} onIntegrationsOpen={() => setIsIntegrationDialogOpen(true)} onShareOpen={() => setIsShareDialogOpen(true)} />
+        <CloudActionCloud email={email} name={profile?.name} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} isOwner={profile?.role === "owner"} selectionAvailable={selectedCategory !== null} selectionMode={selectionMode} selectedCount={selectedItemIds.length} onSelectionToggle={toggleSelectionMode} onSelectAll={selectAllItems} onBulkMove={openBulkMove} onBulkDelete={openBulkDelete} onAddLink={() => { setEditingItem(null); setIsItemDialogOpen(true); }} onSearch={openSearch} onTagsOpen={() => setIsTagManagerOpen(true)} onIntegrationsOpen={() => setIsIntegrationDialogOpen(true)} onAccessOpen={() => setIsAccessAdminOpen(true)} onShareOpen={() => setIsShareDialogOpen(true)} />
       </aside>
       {savedMessage && <p className="workspace-toast" role="status">{savedMessage}</p>}
       <BulkActionDialog open={bulkActionMode !== null} mode={bulkActionMode ?? "move"} items={selectedItems} sourceCategory={selectedCategory ?? { id: "", name: "", color: "", itemCount: 0, recentItems: [] }} categories={categories} onClose={() => setBulkActionMode(null)} onConfirm={(categoryId) => performBulkAction(bulkActionMode === "delete" ? { action: "delete", itemIds: selectedItemIds, sourceCategoryId: selectedCategoryId ?? "" } : { action: "move", itemIds: selectedItemIds, sourceCategoryId: selectedCategoryId ?? "", categoryId: categoryId === "__untagged__" ? null : categoryId ?? null })} onClosingChange={handleBulkActionClosingChange} />
@@ -438,6 +441,7 @@ export function CloudyShell() {
       <ItemDeleteDialog open={isItemDeleteOpen} item={deletingItem} onClose={() => setIsItemDeleteOpen(false)} onDeleted={handleItemDeleted} onClosingChange={handleItemDeleteClosingChange} />
       <TagManagerDialog open={isTagManagerOpen} categories={managedCategories} onClose={() => setIsTagManagerOpen(false)} onCategoriesChange={handleCategoriesChange} />
       <IntegrationDialog open={isIntegrationDialogOpen} onClose={() => setIsIntegrationDialogOpen(false)} onClosingChange={setIsIntegrationDialogClosing} />
+      <AccessAdminDialog open={isAccessAdminOpen} onClose={() => setIsAccessAdminOpen(false)} onClosingChange={setIsAccessAdminClosing} />
       <ShareDialog open={isShareDialogOpen} categories={managedCategories} onClose={() => setIsShareDialogOpen(false)} onClosingChange={setIsShareDialogClosing} />
       <SharedCategoriesDialog open={sharedShareId !== null} shareId={sharedShareId} currentCategoryCount={managedCategories.length} onClose={() => { setSharedShareId(null); clearShareUrl(); }} onImported={handleSharedCategoriesImported} onClosingChange={setIsSharedDialogClosing} />
       <CommandPalette open={isSearchOpen} items={searchItems} isLoading={searchItemsLoading} error={searchItemsError} onClose={closeSearch} onRetry={retrySearch} onSelect={(item) => { closeSearch(); openItemDetail(item); }} />

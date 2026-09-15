@@ -56,6 +56,19 @@ describe("CloudActionCloud", () => {
     expect(onIntegrationsOpen).toHaveBeenCalledOnce();
   });
 
+  it("mostra Acessos somente para o owner e abre diretamente o modal", () => {
+    const onAccessOpen = vi.fn();
+    const { rerender } = render(<CloudActionCloud onAccessOpen={onAccessOpen} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir configurações" }));
+    expect(screen.queryByRole("menuitem", { name: "Acessos" })).not.toBeInTheDocument();
+
+    rerender(<CloudActionCloud isOwner onAccessOpen={onAccessOpen} />);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Acessos" }));
+    expect(onAccessOpen).toHaveBeenCalledOnce();
+    expect(screen.getByRole("menu")).toHaveClass("dropdown-menu--closing");
+  });
+
   it("alterna Pointer e Hand e expõe ações para itens selecionados", () => {
     const onSelectionToggle = vi.fn();
     const onSelectAll = vi.fn();
