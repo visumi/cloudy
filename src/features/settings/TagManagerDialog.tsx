@@ -270,7 +270,7 @@ export function TagManagerDialog({ open, categories, onClose, onCategoriesChange
         </div>
         <div className="tag-manager-list" aria-label="Coleções salvas">
           {sortedCategories.length === 0 ? (
-            <div className="tag-manager-empty"><span className="tag-manager-empty-mark" aria-hidden="true"><Plus /></span><p>Sua paleta começa aqui.</p></div>
+            <div className="tag-manager-empty"><span className="tag-manager-empty-mark" aria-hidden="true"><Plus /></span><p>Sua nuvem começa aqui.</p></div>
           ) : sortedCategories.map((category) => {
             const itemCount = category.itemCount ?? 0;
             return (
