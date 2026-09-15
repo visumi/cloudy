@@ -58,16 +58,20 @@ describe("CloudActionCloud", () => {
 
   it("alterna Pointer e Hand e expõe ações para itens selecionados", () => {
     const onSelectionToggle = vi.fn();
+    const onSelectAll = vi.fn();
     const onBulkMove = vi.fn();
     const onBulkDelete = vi.fn();
-    const { rerender } = render(<CloudActionCloud selectionAvailable onSelectionToggle={onSelectionToggle} onBulkMove={onBulkMove} onBulkDelete={onBulkDelete} />);
+    const { rerender } = render(<CloudActionCloud selectionAvailable onSelectionToggle={onSelectionToggle} onSelectAll={onSelectAll} onBulkMove={onBulkMove} onBulkDelete={onBulkDelete} />);
 
     const pointer = screen.getByRole("button", { name: "Ativar seleção de itens" });
     expect(pointer.querySelector("svg")).toBeInTheDocument();
     fireEvent.click(pointer);
     expect(onSelectionToggle).toHaveBeenCalledOnce();
 
-    rerender(<CloudActionCloud selectionAvailable selectionMode selectedCount={2} onSelectionToggle={onSelectionToggle} onBulkMove={onBulkMove} onBulkDelete={onBulkDelete} />);
+    rerender(<CloudActionCloud selectionAvailable selectionMode selectedCount={2} onSelectionToggle={onSelectionToggle} onSelectAll={onSelectAll} onBulkMove={onBulkMove} onBulkDelete={onBulkDelete} />);
+    fireEvent.click(screen.getByRole("button", { name: "Ações para 2 itens selecionados" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Selecionar tudo" }));
+    expect(onSelectAll).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", { name: "Ações para 2 itens selecionados" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Mover 2 itens" }));
     expect(onBulkMove).toHaveBeenCalledOnce();

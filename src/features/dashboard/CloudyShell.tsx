@@ -232,6 +232,11 @@ export function CloudyShell() {
     setSelectedItemIds((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id]);
   }, []);
 
+  const selectAllItems = useCallback(() => {
+    if (visibleItems.length === 0) return;
+    setSelectedItemIds(visibleItems.map((item) => item.id));
+  }, [visibleItems]);
+
   const selectedItems = useMemo(() => visibleItems.filter((item) => selectedItemIds.includes(item.id)), [selectedItemIds, visibleItems]);
 
   const startItemAction = useCallback((type: PendingItemAction["type"], item: CloudyItem) => {
@@ -420,7 +425,7 @@ export function CloudyShell() {
         </ItemGraph>
       </section>
       <aside className={`action-cloud-dock${isActionCloudSuppressed ? " action-cloud-dock--hidden" : ""}`} aria-label="Ações do Cloudy" aria-hidden={isActionCloudSuppressed}>
-        <CloudActionCloud email={email} name={profile?.name} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} selectionAvailable={selectedCategory !== null} selectionMode={selectionMode} selectedCount={selectedItemIds.length} onSelectionToggle={toggleSelectionMode} onBulkMove={openBulkMove} onBulkDelete={openBulkDelete} onAddLink={() => { setEditingItem(null); setIsItemDialogOpen(true); }} onSearch={openSearch} onTagsOpen={() => setIsTagManagerOpen(true)} onIntegrationsOpen={() => setIsIntegrationDialogOpen(true)} onShareOpen={() => setIsShareDialogOpen(true)} />
+        <CloudActionCloud email={email} name={profile?.name} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} selectionAvailable={selectedCategory !== null} selectionMode={selectionMode} selectedCount={selectedItemIds.length} onSelectionToggle={toggleSelectionMode} onSelectAll={selectAllItems} onBulkMove={openBulkMove} onBulkDelete={openBulkDelete} onAddLink={() => { setEditingItem(null); setIsItemDialogOpen(true); }} onSearch={openSearch} onTagsOpen={() => setIsTagManagerOpen(true)} onIntegrationsOpen={() => setIsIntegrationDialogOpen(true)} onShareOpen={() => setIsShareDialogOpen(true)} />
       </aside>
       {savedMessage && <p className="workspace-toast" role="status">{savedMessage}</p>}
       <BulkActionDialog open={bulkActionMode !== null} mode={bulkActionMode ?? "move"} items={selectedItems} sourceCategory={selectedCategory ?? { id: "", name: "", color: "", itemCount: 0, recentItems: [] }} categories={categories} onClose={() => setBulkActionMode(null)} onConfirm={(categoryId) => performBulkAction(bulkActionMode === "delete" ? { action: "delete", itemIds: selectedItemIds, sourceCategoryId: selectedCategoryId ?? "" } : { action: "move", itemIds: selectedItemIds, sourceCategoryId: selectedCategoryId ?? "", categoryId: categoryId === "__untagged__" ? null : categoryId ?? null })} />
