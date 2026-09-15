@@ -519,7 +519,7 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 .bulk-destination--selected { border-color: var(--sky-700); background: #e0f2fe; }
 .bulk-destination:disabled { cursor: not-allowed; opacity: .52; }
 .bulk-destination svg { width: 17px; height: 17px; color: var(--sky-700); }
-.bulk-destination-empty, .bulk-action-warning { margin: 0; color: #64748b; font-size: .78rem; line-height: 1.4; }
+.bulk-destination-empty { margin: 0; color: #64748b; font-size: .78rem; line-height: 1.4; }
 .item-dialog-heading { margin-bottom: 18px; }
 .item-dialog form { display: grid; min-height: 0; flex: 1 1 auto; gap: 8px; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; scrollbar-gutter: stable; }
 .field-label { margin-top: 8px; color: var(--sky-900); font-size: .78rem; font-weight: 750; }

@@ -66,7 +66,6 @@ export function BulkActionDialog({ open, mode, items, sourceCategory, categories
           {destinations.length === 0 && <p className="bulk-destination-empty">Não há categorias disponíveis para este movimento.</p>}
         </div>}
         {error && <p className="item-dialog-error" role="alert">{error}</p>}
-        {mode === "delete" && <p className="bulk-action-warning">Esta ação não pode ser desfeita.</p>}
         <div className="item-delete-actions">
           <button className="button-action item-delete-cancel" type="button" disabled={busy} onClick={onClose}>Cancelar</button>
           <button className={`button-action ${mode === "delete" ? "item-delete-confirm" : "item-dialog-submit"}`} type="button" disabled={!canConfirm || busy} aria-busy={busy} onClick={() => void confirm()}>
