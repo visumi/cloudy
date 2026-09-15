@@ -4,6 +4,7 @@ import { ArrowLeftRight, Check, LoaderCircle, Trash2, X } from "lucide-react";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
 import { ApiError } from "../../lib/api";
 import type { CategorySummary, CloudyItem } from "../../types/api";
+import { EMPTY_CATEGORY_COLOR, getCategoryColorStyle } from "./category-colors";
 
 interface BulkActionDialogProps {
   open: boolean;
@@ -161,13 +162,21 @@ export function BulkActionDialog({ open, mode, items, sourceCategory, categories
             <p id="bulk-action-description">{mode === "delete" ? `Os itens selecionados de ${sourceCategory.name} serão removidos permanentemente.` : `Escolha uma categoria para os ${count} ${count === 1 ? "item selecionado" : "itens selecionados"}.`}</p>
           </div>
         </div>
-        {mode === "move" && <div className="bulk-destination-list" role="listbox" aria-label="Categoria de destino">
-          <button className={`bulk-destination${targetId === "__untagged__" ? " bulk-destination--selected" : ""}`} type="button" role="option" aria-selected={targetId === "__untagged__"} disabled={!canMoveToEmpty} onClick={() => setTargetId("__untagged__")}><span>Vazio{!canMoveToEmpty && " (sem espaço)"}</span>{targetId === "__untagged__" && <Check aria-hidden="true" />}</button>
-          {destinations.map((category) => <button className={`bulk-destination${targetId === category.id ? " bulk-destination--selected" : ""}`} key={category.id} type="button" role="option" aria-selected={targetId === category.id} onClick={() => setTargetId(category.id)}><span>{category.name}</span>{targetId === category.id && <Check aria-hidden="true" />}</button>)}
-          {destinations.length === 0 && <p className="bulk-destination-empty">Não há categorias disponíveis para este movimento.</p>}
+        {mode === "move" && <div className="share-list" role="listbox" aria-label="Categoria de destino">
+          <button className={`share-category-option${targetId === "__untagged__" ? " share-category-option--selected" : ""}${!canMoveToEmpty ? " share-category-option--disabled" : ""}`} type="button" role="option" aria-selected={targetId === "__untagged__"} disabled={!canMoveToEmpty} onClick={() => setTargetId("__untagged__")}>
+            <span className="share-category-mark" style={getCategoryColorStyle(EMPTY_CATEGORY_COLOR)} aria-hidden="true"><span /></span>
+            <span className="share-category-copy"><strong>Vazio</strong><small>{emptyCategory?.itemCount ?? 0} {(emptyCategory?.itemCount ?? 0) === 1 ? "item" : "itens"}</small></span>
+            {targetId === "__untagged__" && <Check className="shared-selected-check" aria-hidden="true" />}
+          </button>
+          {destinations.map((category) => <button className={`share-category-option${targetId === category.id ? " share-category-option--selected" : ""}`} style={getCategoryColorStyle(category.color)} key={category.id} type="button" role="option" aria-selected={targetId === category.id} onClick={() => setTargetId(category.id)}>
+            <span className="share-category-mark" aria-hidden="true"><span /></span>
+            <span className="share-category-copy"><strong>{category.name}</strong><small>{category.itemCount} {category.itemCount === 1 ? "item" : "itens"}</small></span>
+            {targetId === category.id && <Check className="shared-selected-check" aria-hidden="true" />}
+          </button>)}
+          {destinations.length === 0 && <p className="share-empty">Não há categorias disponíveis para este movimento.</p>}
         </div>}
         {error && <p className="item-dialog-error" role="alert">{error}</p>}
-        <div className="item-delete-actions">
+        <div className="item-delete-actions bulk-action-actions">
           <button ref={cancelButtonRef} className="button-action item-delete-cancel" type="button" disabled={busy} onClick={requestClose}>Cancelar</button>
           <button className={`button-action ${mode === "delete" ? "item-delete-confirm" : "item-dialog-submit"}`} type="button" disabled={!canConfirm || busy} aria-busy={busy} onClick={() => void confirm()}>
             {busy && <LoaderCircle className="button-loading-spinner" aria-hidden="true" />}

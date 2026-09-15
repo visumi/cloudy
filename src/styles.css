@@ -513,6 +513,7 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 .item-delete-confirm svg { width: 16px; height: 16px; }
 .bulk-action-dialog { max-height: min(86dvh, 620px); }
 .bulk-action-dialog .item-delete-heading-icon { color: var(--sky-700); background: #e0f2fe; }
+.bulk-action-actions .button-action { width: 100%; height: 44px; min-height: 44px; margin-top: 0; }
 .bulk-destination-list { display: grid; max-height: 280px; gap: 5px; overflow-y: auto; padding: 2px; }
 .bulk-destination { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid transparent; border-radius: 11px; padding: 0 12px; color: var(--sky-900); background: white; cursor: pointer; text-align: left; transition: var(--control-transition); }
 .bulk-destination:hover, .bulk-destination:focus-visible { border-color: #bae6fd; background: #e0f2fe; outline: none; }
