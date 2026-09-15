@@ -16,7 +16,6 @@ import { EMPTY_CATEGORY_COLOR } from "../items/category-colors";
 import type { BulkItemActionPayload, BulkItemActionResponse, CategoriesResponse, CategoryRecentItem, CategorySummary, CloudyItem, ItemsResponse } from "../../types/api";
 
 const CloudMascot = lazy(() => import("./CloudMascot").then(({ CloudMascot: Mascot }) => ({ default: Mascot })));
-const ACTION_CLOUD_IDLE_DELAY = 4200;
 const UNTAGGED_CATEGORY_ID = "__untagged__";
 
 interface RefreshOptions {
@@ -34,41 +33,8 @@ interface PendingItemAction {
   item: CloudyItem;
 }
 
-function useActionCloudIdle(menuOpen: boolean) {
-  const [isHidden, setIsHidden] = useState(false);
-
-  useEffect(() => {
-    let timeoutId: number | undefined;
-
-    const scheduleHide = () => {
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
-      timeoutId = window.setTimeout(() => setIsHidden(true), ACTION_CLOUD_IDLE_DELAY);
-    };
-
-    const wake = () => {
-      setIsHidden(false);
-      if (!menuOpen) scheduleHide();
-    };
-
-    const activityEvents: Array<keyof WindowEventMap> = ["pointermove", "pointerdown", "touchstart", "wheel", "scroll", "keydown", "focusin"];
-    if (menuOpen) setIsHidden(false);
-    else scheduleHide();
-    activityEvents.forEach((eventName) => {
-      window.addEventListener(eventName, wake, eventName === "touchstart" || eventName === "wheel" || eventName === "scroll" ? { passive: true } : undefined);
-    });
-
-    return () => {
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
-      activityEvents.forEach((eventName) => window.removeEventListener(eventName, wake));
-    };
-  }, [menuOpen]);
-
-  return isHidden;
-}
-
 export function CloudyShell() {
   const { profile, signOutUser, user } = useAuth();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isItemDialogOpen, setIsItemDialogOpen] = useState(false);
   const [isItemDialogClosing, setIsItemDialogClosing] = useState(false);
   const [editingItem, setEditingItem] = useState<CloudyItem | null>(null);
@@ -110,8 +76,7 @@ export function CloudyShell() {
   const itemDialogClosingStartedRef = useRef(false);
   const itemDeleteClosingStartedRef = useRef(false);
   const categoryCacheRefreshGenerationRef = useRef(0);
-  const isActionCloudHidden = useActionCloudIdle(isMenuOpen || selectionMode);
-  const isActionCloudSuppressed = isActionCloudHidden || bulkActionMode !== null || isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
+  const isActionCloudSuppressed = bulkActionMode !== null || isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
   const isModalOpen = bulkActionMode !== null || isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
   const photoURL = user?.photoURL ?? profile?.picture;
   const email = user?.email ?? profile?.email;
@@ -455,7 +420,7 @@ export function CloudyShell() {
         </ItemGraph>
       </section>
       <aside className={`action-cloud-dock${isActionCloudSuppressed ? " action-cloud-dock--hidden" : ""}`} aria-label="Ações do Cloudy" aria-hidden={isActionCloudSuppressed}>
-        <CloudActionCloud email={email} name={profile?.name} onMenuOpenChange={setIsMenuOpen} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} selectionAvailable={selectedCategory !== null} selectionMode={selectionMode} selectedCount={selectedItemIds.length} onSelectionToggle={toggleSelectionMode} onBulkMove={openBulkMove} onBulkDelete={openBulkDelete} onAddLink={() => { setEditingItem(null); setIsItemDialogOpen(true); }} onSearch={openSearch} onTagsOpen={() => setIsTagManagerOpen(true)} onIntegrationsOpen={() => setIsIntegrationDialogOpen(true)} onShareOpen={() => setIsShareDialogOpen(true)} />
+        <CloudActionCloud email={email} name={profile?.name} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} selectionAvailable={selectedCategory !== null} selectionMode={selectionMode} selectedCount={selectedItemIds.length} onSelectionToggle={toggleSelectionMode} onBulkMove={openBulkMove} onBulkDelete={openBulkDelete} onAddLink={() => { setEditingItem(null); setIsItemDialogOpen(true); }} onSearch={openSearch} onTagsOpen={() => setIsTagManagerOpen(true)} onIntegrationsOpen={() => setIsIntegrationDialogOpen(true)} onShareOpen={() => setIsShareDialogOpen(true)} />
       </aside>
       {savedMessage && <p className="workspace-toast" role="status">{savedMessage}</p>}
       <BulkActionDialog open={bulkActionMode !== null} mode={bulkActionMode ?? "move"} items={selectedItems} sourceCategory={selectedCategory ?? { id: "", name: "", color: "", itemCount: 0, recentItems: [] }} categories={categories} onClose={() => setBulkActionMode(null)} onConfirm={(categoryId) => performBulkAction(bulkActionMode === "delete" ? { action: "delete", itemIds: selectedItemIds, sourceCategoryId: selectedCategoryId ?? "" } : { action: "move", itemIds: selectedItemIds, sourceCategoryId: selectedCategoryId ?? "", categoryId: categoryId === "__untagged__" ? null : categoryId ?? null })} />

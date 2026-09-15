@@ -59,6 +59,22 @@ const mockedApiRequest = vi.mocked(apiRequest);
 beforeEach(() => { mockedApiRequest.mockReset(); });
 
 describe("CloudyShell", () => {
+  it("mantém o dock visível mesmo após inatividade", () => {
+    vi.useFakeTimers();
+    try {
+      mockedApiRequest.mockResolvedValueOnce({ categories: [] });
+      const { container } = render(<CloudyShell />);
+      const dock = container.querySelector<HTMLElement>(".action-cloud-dock")!;
+
+      act(() => vi.advanceTimersByTime(5000));
+
+      expect(dock).not.toHaveClass("action-cloud-dock--hidden");
+      expect(dock).toHaveAttribute("aria-hidden", "false");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("oculta o dock enquanto o drawer de adicionar link está aberto", async () => {
     mockedApiRequest.mockResolvedValueOnce({ categories: [] });
     const { container } = render(<CloudyShell />);

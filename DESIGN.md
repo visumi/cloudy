@@ -224,7 +224,7 @@ Todos os modais operacionais seguem a mesma leitura inicial: handle de drawer no
 
 ### ActionCloud
 
-Composição assinatura que agrupa Settings, Plus e Share2. O dock some após 4,2 segundos de inatividade e retorna com atividade do mouse, toque, rolagem, clique ou teclado. O temporizador pausa enquanto um dropdown está aberto.
+Composição assinatura que agrupa Settings, Plus e Share2. O dock permanece visível para manter as ações principais sempre acessíveis; ele é ocultado apenas quando um modal ou drawer precisa de foco exclusivo.
 
 ### LoginButton
 
