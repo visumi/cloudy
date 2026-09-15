@@ -43,6 +43,8 @@ const cloudMenus: Record<CloudMenu, { items: CloudMenuItem[]; title: string }> =
 export function CloudActionCloud({ email, name, onAddLink, onSearch, onTagsOpen, onIntegrationsOpen, onShareOpen, onSignOut, onMenuOpenChange, photoURL, disabled = false, selectionMode = false, selectionAvailable = false, selectedCount = 0, onSelectionToggle, onBulkMove, onBulkDelete }: CloudActionCloudProps) {
   const [openMenu, setOpenMenu] = useState<CloudMenu | null>(null);
   const [closingMenu, setClosingMenu] = useState<CloudMenu | null>(null);
+  const [selectionToggleMounted, setSelectionToggleMounted] = useState(selectionAvailable);
+  const [selectionToggleClosing, setSelectionToggleClosing] = useState(false);
   const [profileImageFailed, setProfileImageFailed] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -74,6 +76,21 @@ export function CloudActionCloud({ email, name, onAddLink, onSearch, onTagsOpen,
       onMenuOpenChange?.(false);
     }
   }, [disabled, onMenuOpenChange]);
+
+  useEffect(() => {
+    if (selectionAvailable) {
+      setSelectionToggleMounted(true);
+      setSelectionToggleClosing(false);
+      return;
+    }
+    if (!selectionToggleMounted) return;
+    setSelectionToggleClosing(true);
+    const timeoutId = window.setTimeout(() => {
+      setSelectionToggleMounted(false);
+      setSelectionToggleClosing(false);
+    }, 220);
+    return () => window.clearTimeout(timeoutId);
+  }, [selectionAvailable, selectionToggleMounted]);
 
   useEffect(() => {
     if (!openMenu || !menuRef.current) return;
@@ -147,7 +164,7 @@ export function CloudActionCloud({ email, name, onAddLink, onSearch, onTagsOpen,
           <Ellipsis aria-hidden="true" strokeWidth={2.3} />
         </IconButton>
       </div>}
-      {selectionAvailable && <div className="cloud-action-slot cloud-action-slot--selection-toggle">
+      {selectionToggleMounted && <div className={`cloud-action-slot cloud-action-slot--selection-toggle${selectionToggleClosing ? " cloud-action-slot--selection-toggle-closing" : ""}`}>
         <IconButton tone="settings" className="icon-button--selection-toggle" label={selectionMode ? "Desativar seleção de itens" : "Ativar seleção de itens"} disabled={disabled} aria-pressed={selectionMode} onClick={() => { closeMenu(); onSelectionToggle?.(); }}>
           {selectionMode ? <Hand aria-hidden="true" strokeWidth={2.1} /> : <MousePointer2 aria-hidden="true" strokeWidth={2.1} />}
         </IconButton>

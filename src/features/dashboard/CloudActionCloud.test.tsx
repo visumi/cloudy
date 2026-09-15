@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import packageJson from "../../../package.json";
 import { CloudActionCloud } from "./CloudActionCloud";
@@ -75,5 +75,22 @@ describe("CloudActionCloud", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Excluir 2 itens" }));
     expect(onBulkDelete).toHaveBeenCalledOnce();
     expect(screen.getByRole("button", { name: "Desativar seleção de itens" })).toBeInTheDocument();
+  });
+
+  it("mantém a bolinha montada durante a saída da categoria", () => {
+    vi.useFakeTimers();
+    try {
+      const { rerender } = render(<CloudActionCloud selectionAvailable />);
+      const toggle = screen.getByRole("button", { name: "Ativar seleção de itens" });
+
+      rerender(<CloudActionCloud selectionAvailable={false} />);
+
+      expect(toggle.parentElement).toHaveClass("cloud-action-slot--selection-toggle-closing");
+      expect(toggle).toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(220));
+      expect(screen.queryByRole("button", { name: "Ativar seleção de itens" })).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
