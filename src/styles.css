@@ -187,10 +187,6 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 .access-admin-panel { position: relative; display: grid; width: min(100%, 560px); max-height: min(92dvh, 760px); gap: 16px; overflow: hidden; border: 1px solid #bae6fd; border-radius: 24px; padding: 28px; color: var(--sky-900); background: #f0f9ff; box-shadow: 0 24px 54px oklch(0.04 0.03 245 / .36); animation: integration-dialog-arrival 320ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 .access-admin-panel[data-closing="true"] { animation: integration-dialog-departure 200ms cubic-bezier(0.7, 0, 0.84, 0) both; }
 .access-admin-panel[data-dragging="true"] { animation: none; transition: none; }
-.access-admin-heading { flex-wrap: wrap; }
-.access-admin-heading .modal-heading-copy { flex: 1 1 220px; }
-.access-admin-counter { display: inline-flex; min-height: 28px; flex: 0 0 auto; align-items: center; gap: 5px; margin-left: auto; border-radius: 999px; padding: 0 9px; color: #0369a1; background: #e0f2fe; font-size: .68rem; font-weight: 800; white-space: nowrap; }
-.access-admin-counter svg { width: 14px; height: 14px; }
 .access-admin-form { display: grid; gap: 7px; border-radius: 14px; padding: 14px; background: #e0f2fe; }
 .access-admin-form > label { color: var(--sky-900); font-size: .72rem; font-weight: 800; }
 .access-admin-form-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; }
@@ -198,7 +194,7 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 .access-admin-form input::placeholder { color: #64748b; }
 .access-admin-form input:focus { border-color: #0284c7; box-shadow: 0 0 0 3px color-mix(in srgb, #38bdf8 28%, transparent); }
 .access-admin-form input:disabled { cursor: wait; opacity: .68; }
-.access-admin-add { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 7px; border: 1px solid #0284c7; border-radius: 11px; padding: 0 14px; color: white; background: #0284c7; font-size: .76rem; font-weight: 750; cursor: pointer; transition: var(--control-transition); }
+.access-admin-add { display: inline-flex; width: 44px; min-height: 44px; align-items: center; justify-content: center; border: 1px solid #0284c7; border-radius: 11px; padding: 0; color: white; background: #0284c7; cursor: pointer; transition: var(--control-transition); }
 .access-admin-add:hover { border-color: #0369a1; background: #0369a1; transform: translateY(-1px); }
 .access-admin-add:disabled { cursor: wait; opacity: .68; transform: none; }
 .access-admin-add svg { width: 16px; height: 16px; }
@@ -227,10 +223,8 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 .access-admin-avatar svg { width: 21px; height: 21px; }
 .access-admin-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .access-admin-user-copy { display: grid; min-width: 0; gap: 3px; }
-.access-admin-user-title { display: flex; min-width: 0; align-items: center; gap: 6px; }
+.access-admin-user-title { display: flex; min-width: 0; align-items: center; }
 .access-admin-user-title strong { min-width: 0; overflow: hidden; font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
-.access-admin-role, .access-admin-status { flex: 0 0 auto; border-radius: 999px; padding: 3px 6px; color: #475569; background: #e2e8f0; font-size: .58rem; font-weight: 800; letter-spacing: .035em; text-transform: uppercase; }
-.access-admin-role, .access-admin-status--active { color: #166534; background: #dcfce7; }
 .access-admin-user-email, .access-admin-last-login { min-width: 0; overflow: hidden; color: var(--sky-700); font-size: .67rem; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .switch { position: relative; display: inline-flex; width: 46px; height: 44px; flex: 0 0 auto; align-items: center; border: 0; border-radius: 999px; padding: 0; color: #64748b; background: transparent; cursor: pointer; }
 .switch::before { position: absolute; inset: 8px 0; border: 1px solid #cbd5e1; border-radius: 999px; background: #e2e8f0; content: ""; transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease; }
@@ -702,8 +696,6 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
   .integration-panel[data-closing="true"], .access-admin-panel[data-closing="true"], .share-panel[data-closing="true"], .shared-panel[data-closing="true"] { animation: item-drawer-departure 200ms cubic-bezier(0.7, 0, 0.84, 0) both; }
   .integration-close, .access-admin-close, .share-close, .shared-close { display: none; }
   .integration-card { padding: 14px; }
-  .access-admin-form-row { grid-template-columns: 1fr; }
-  .access-admin-add { width: 100%; }
   .access-admin-list { max-height: min(34dvh, 300px); }
   .access-admin-user { padding-inline: 8px; }
   .share-list, .shared-list { max-height: min(42dvh, 320px); }

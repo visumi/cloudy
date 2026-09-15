@@ -49,13 +49,23 @@ describe("AccessAdminDialog", () => {
     expect(screen.getByText("Buscando os usuários autorizados…")).toBeInTheDocument();
   });
 
-  it("lista usuários e mantém o owner protegido", async () => {
+  it("lista usuários sem badges e mantém o proprietário protegido", async () => {
     mockedApiRequest.mockResolvedValueOnce([member, owner]);
     render(<AccessAdminDialog open onClose={vi.fn()} />);
 
     expect(await screen.findByRole("switch", { name: "Acesso do proprietário protegido" })).toBeDisabled();
     expect(screen.getByRole("switch", { name: "Ativar acesso de member@example.com" })).toHaveAttribute("aria-checked", "false");
-    expect(screen.getByText("1 ativo")).toBeInTheDocument();
+    expect(screen.queryByText("Proprietário")).not.toBeInTheDocument();
+    expect(screen.queryByText("Inativo")).not.toBeInTheDocument();
+  });
+
+  it("mantém o botão de liberar acesso apenas com ícone e nome acessível", () => {
+    mockedApiRequest.mockReturnValueOnce(new Promise<never>(() => {}));
+    render(<AccessAdminDialog open onClose={vi.fn()} />);
+
+    const button = screen.getByRole("button", { name: "Liberar acesso" });
+    expect(button.querySelector("svg")).toBeInTheDocument();
+    expect(button.querySelector("span")).toBeNull();
   });
 
   it("normaliza e libera um novo acesso", async () => {

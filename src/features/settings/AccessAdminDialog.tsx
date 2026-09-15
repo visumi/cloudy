@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type AnimationEvent, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type AnimationEvent, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { CircleUser, LoaderCircle, RefreshCw, ShieldCheck, UserPlus, UsersRound, X } from "lucide-react";
+import { CircleUser, LoaderCircle, RefreshCw, ShieldCheck, UserPlus, X } from "lucide-react";
 import { Switch } from "../../components/ui/switch";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
 import { ApiError, apiRequest } from "../../lib/api";
@@ -136,8 +136,6 @@ export function AccessAdminDialog({ open, onClose, onClosingChange }: AccessAdmi
     };
   }, [open, requestClose]);
 
-  const activeCount = useMemo(() => users.filter((user) => user.active).length, [users]);
-
   const addUser = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const normalizedEmail = email.trim().toLowerCase();
@@ -214,16 +212,14 @@ export function AccessAdminDialog({ open, onClose, onClosingChange }: AccessAdmi
             <h2 id="access-admin-title">Acessos</h2>
             <p id="access-admin-description">Defina quais contas Google podem entrar no Cloudy.</p>
           </div>
-          <span className="access-admin-counter"><UsersRound aria-hidden="true" />{activeCount} {activeCount === 1 ? "ativo" : "ativos"}</span>
         </div>
 
         <form className="access-admin-form" onSubmit={(event) => void addUser(event)} noValidate>
           <label htmlFor="access-admin-email">E-mail da conta Google</label>
           <div className="access-admin-form-row">
             <input ref={emailInputRef} id="access-admin-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="pessoa@exemplo.com" autoComplete="email" disabled={isSaving} />
-            <button className="button-action access-admin-add" type="submit" disabled={isSaving} aria-busy={isSaving}>
+            <button className="button-action access-admin-add" type="submit" disabled={isSaving} aria-busy={isSaving} aria-label={isSaving ? "Liberando acesso" : "Liberar acesso"}>
               {isSaving ? <LoaderCircle className="button-loading-spinner" aria-hidden="true" /> : <UserPlus aria-hidden="true" />}
-              <span>{isSaving ? "Liberando…" : "Liberar acesso"}</span>
             </button>
           </div>
         </form>
@@ -261,8 +257,6 @@ export function AccessAdminDialog({ open, onClose, onClosingChange }: AccessAdmi
                 <div className="access-admin-user-copy">
                   <div className="access-admin-user-title">
                     <strong>{accessUser.user?.name || accessUser.email}</strong>
-                    {accessUser.role === "owner" && <span className="access-admin-role">Proprietário</span>}
-                    {accessUser.role !== "owner" && <span className={`access-admin-status${accessUser.active ? " access-admin-status--active" : ""}`}>{accessUser.active ? "Ativo" : "Inativo"}</span>}
                   </div>
                   {accessUser.user?.name && <span className="access-admin-user-email">{accessUser.email}</span>}
                   <span className="access-admin-last-login">{formatLastLogin(accessUser.user?.lastLoginAt)}</span>
