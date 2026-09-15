@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Client } from "@libsql/client/web";
-import { createCategory, createIntegrationItem, createItem, deleteCategory, listCategories, listCategoryItems, parseCategoryInput, parseCreateItemInput, parseIntegrationItemInput, resolveLinkPreview, UNTAGGED_CATEGORY_ID, INTEGRATIONS_CATEGORY_ID, updateCategory } from "./items";
+import { createCategory, createIntegrationItem, createItem, deleteCategory, deleteItem, listCategories, listCategoryItems, parseCategoryInput, parseCreateItemInput, parseIntegrationItemInput, parseUpdateItemInput, resolveLinkPreview, UNTAGGED_CATEGORY_ID, INTEGRATIONS_CATEGORY_ID, updateCategory, updateItem } from "./items";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -280,5 +280,108 @@ describe("link preview", () => {
     });
 
     await expect(createItem({ execute } as Client, "user-1", { name: "Nova referência", categoryName: "Ideias" })).rejects.toThrowError("category_item_limit_reached");
+  });
+});
+
+describe("item mutations", () => {
+  it("valida o payload completo de edição", () => {
+    expect(parseUpdateItemInput({ name: "  Nova referência  ", url: "", observation: "  Nota curta  ", categoryId: null })).toEqual({
+      name: "Nova referência",
+      url: null,
+      observation: "Nota curta",
+      categoryId: null
+    });
+    expect(() => parseUpdateItemInput({ name: "", url: null, observation: null, categoryId: null })).toThrowError("invalid_item_name");
+    expect(() => parseUpdateItemInput({ name: "Item", url: null, observation: null, categoryId: "" })).toThrowError("invalid_category_id");
+    expect(() => parseUpdateItemInput({ name: "Item", url: null, observation: null })).toThrowError("invalid_category_id");
+  });
+
+  it("edita um item na mesma coleção e preserva sua prévia", async () => {
+    const execute = vi.fn(async (statement: { sql: string; args?: unknown[] }) => {
+      if (statement.sql.includes("SELECT i.id, i.name")) return { rows: [{ id: "item-1", name: "Ideia", url: "https://example.com", image_url: "https://example.com/cover.jpg", favicon_url: "https://example.com/favicon.ico", observation: null, system_category: null, created_at: "2026-09-11", updated_at: "2026-09-11", category_id: "category-1", category_name: "Ideias", category_color: "#A78BFA" }] };
+      if (statement.sql.includes("SELECT id FROM categories")) return { rows: [{ id: "category-1" }] };
+      return { rows: [] };
+    });
+    vi.stubGlobal("fetch", vi.fn());
+
+    const updated = await updateItem({ execute } as Client, "user-1", "item-1", { name: "Ideia revisada", url: "https://example.com", observation: "Nova nota", categoryId: "category-1" });
+
+    expect(updated.id).toBe("item-1");
+    expect(fetch).not.toHaveBeenCalled();
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({
+      sql: expect.stringContaining("UPDATE items"),
+      args: ["category-1", null, "Ideia revisada", "https://example.com", "https://example.com/cover.jpg", "https://example.com/favicon.ico", "Nova nota", "item-1", "user-1"]
+    }));
+  });
+
+  it("move uma integração para uma coleção comum e respeita a capacidade do destino", async () => {
+    let destinationCount = 0;
+    const execute = vi.fn(async (statement: { sql: string }) => {
+      if (statement.sql.includes("SELECT i.id, i.name")) return { rows: [{ id: "item-2", name: "Reel", url: "https://example.com/reel", image_url: null, favicon_url: null, observation: null, system_category: "integrations", created_at: "2026-09-11", updated_at: "2026-09-11", category_id: null, category_name: null, category_color: null }] };
+      if (statement.sql.includes("SELECT id FROM categories")) return { rows: [{ id: "category-1" }] };
+      if (statement.sql.includes("SELECT COUNT(*) AS item_count")) return { rows: [{ item_count: destinationCount }] };
+      return { rows: [] };
+    });
+
+    await expect(updateItem({ execute } as Client, "user-1", "item-2", { name: "Reel", url: "https://example.com/reel", observation: null, categoryId: "category-1" })).resolves.toMatchObject({ id: "item-2" });
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ args: ["category-1", null, "Reel", "https://example.com/reel", null, null, null, "item-2", "user-1"] }));
+
+    destinationCount = 100;
+    await expect(updateItem({ execute } as Client, "user-1", "item-2", { name: "Reel", url: "https://example.com/reel", observation: null, categoryId: "category-1" })).rejects.toThrowError("category_item_limit_reached");
+  });
+
+  it("move uma integração para Vazio e limpa a categoria de sistema", async () => {
+    const execute = vi.fn(async (statement: { sql: string }) => {
+      if (statement.sql.includes("SELECT i.id, i.name")) return { rows: [{ id: "item-2", name: "Reel", url: null, image_url: null, favicon_url: null, observation: null, system_category: "integrations", created_at: "2026-09-11", updated_at: "2026-09-11", category_id: null, category_name: null, category_color: null }] };
+      if (statement.sql.includes("SELECT COUNT(*) AS item_count")) return { rows: [{ item_count: 2 }] };
+      return { rows: [] };
+    });
+
+    await expect(updateItem({ execute } as Client, "user-1", "item-2", { name: "Reel", url: null, observation: null, categoryId: null })).resolves.toMatchObject({ id: "item-2" });
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ args: [null, null, "Reel", null, null, null, null, "item-2", "user-1"] }));
+  });
+
+  it("retorna 404 para item ou coleção fora do escopo do usuário", async () => {
+    const missingItemDb = { execute: vi.fn(async () => ({ rows: [] })) } as unknown as Client;
+    await expect(updateItem(missingItemDb, "user-1", "missing", { name: "Item", url: null, observation: null, categoryId: null })).rejects.toThrowError("item_not_found");
+
+    const execute = vi.fn(async (statement: { sql: string }) => statement.sql.includes("SELECT i.id, i.name")
+      ? { rows: [{ id: "item-1", name: "Item", url: null, image_url: null, favicon_url: null, observation: null, system_category: null, created_at: "2026-09-11", updated_at: "2026-09-11", category_id: null, category_name: null, category_color: null }] }
+      : { rows: [] });
+    await expect(updateItem({ execute } as Client, "user-1", "item-1", { name: "Item", url: null, observation: null, categoryId: "category-other-user" })).rejects.toThrowError("category_not_found");
+  });
+
+  it("impede que um item comum seja enviado para Integrações", async () => {
+    const execute = vi.fn(async (statement: { sql: string }) => statement.sql.includes("SELECT i.id, i.name")
+      ? { rows: [{ id: "item-1", name: "Ideia", url: null, image_url: null, favicon_url: null, observation: null, system_category: null, created_at: "2026-09-11", updated_at: "2026-09-11", category_id: null, category_name: null, category_color: null }] }
+      : { rows: [] });
+
+    await expect(updateItem({ execute } as Client, "user-1", "item-1", { name: "Ideia", url: null, observation: null, categoryId: INTEGRATIONS_CATEGORY_ID })).rejects.toThrowError("system_category");
+  });
+
+  it("recalcula ou limpa a prévia quando o link muda", async () => {
+    const updates: unknown[][] = [];
+    const execute = vi.fn(async (statement: { sql: string; args?: unknown[] }) => {
+      if (statement.sql.includes("SELECT i.id, i.name")) return { rows: [{ id: "item-1", name: "Ideia", url: "https://old.example.com", image_url: "https://old.example.com/cover.jpg", favicon_url: "https://old.example.com/favicon.ico", observation: null, system_category: null, created_at: "2026-09-11", updated_at: "2026-09-11", category_id: null, category_name: null, category_color: null }] };
+      if (statement.sql.includes("UPDATE items")) updates.push(statement.args ?? []);
+      return { rows: [] };
+    });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(`<meta property="og:image" content="/new.jpg"><link rel="icon" href="/new.ico">`, { status: 200, headers: { "content-type": "text/html" } })));
+
+    await updateItem({ execute } as Client, "user-1", "item-1", { name: "Ideia", url: "https://new.example.com", observation: null, categoryId: null });
+    await updateItem({ execute } as Client, "user-1", "item-1", { name: "Ideia", url: null, observation: null, categoryId: null });
+
+    expect(updates[0]).toEqual([null, null, "Ideia", "https://new.example.com", "https://new.example.com/new.jpg", "https://new.example.com/new.ico", null, "item-1", "user-1"]);
+    expect(updates[1]).toEqual([null, null, "Ideia", null, null, null, null, "item-1", "user-1"]);
+  });
+
+  it("exclui somente um item pertencente ao usuário", async () => {
+    const execute = vi.fn(async (statement: { sql: string }) => statement.sql.includes("SELECT id FROM items") ? { rows: [{ id: "item-1" }] } : { rows: [] });
+
+    await expect(deleteItem({ execute } as Client, "user-1", "item-1")).resolves.toEqual({ id: "item-1" });
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ sql: "DELETE FROM items WHERE id = ? AND user_id = ?", args: ["item-1", "user-1"] }));
+
+    execute.mockResolvedValueOnce({ rows: [] });
+    await expect(deleteItem({ execute } as Client, "user-1", "missing")).rejects.toThrowError("item_not_found");
   });
 });

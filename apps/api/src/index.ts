@@ -1,5 +1,5 @@
 import { authenticate, resolveAuthenticatedUser, upsertUser } from "./access";
-import { createCategory, createIntegrationItem, createItem, deleteCategory, listCategories, listCategoryItems, listItems, previewItem, updateCategory } from "./items";
+import { createCategory, createIntegrationItem, createItem, deleteCategory, deleteItem, listCategories, listCategoryItems, listItems, previewItem, updateCategory, updateItem } from "./items";
 import { authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken } from "./integration-tokens";
 import { createShare, getShare, importShare } from "./shares";
 import { createDatabaseClient, type AuthUser, type Env, type HttpError } from "./shared";
@@ -14,6 +14,8 @@ export interface RequestDependencies {
   listItems: typeof listItems;
   listCategoryItems?: typeof listCategoryItems;
   createItem: typeof createItem;
+  updateItem?: typeof updateItem;
+  deleteItem?: typeof deleteItem;
   previewItem: typeof previewItem;
   listCategories?: typeof listCategories;
   createCategory?: typeof createCategory;
@@ -28,7 +30,7 @@ export interface RequestDependencies {
   getShare?: typeof getShare;
   importShare?: typeof importShare;
 }
-const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, listCategoryItems, createItem, previewItem, listCategories, createCategory, updateCategory, deleteCategory, createIntegrationItem, authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken, createShare, getShare, importShare };
+const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, listCategoryItems, createItem, updateItem, deleteItem, previewItem, listCategories, createCategory, updateCategory, deleteCategory, createIntegrationItem, authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken, createShare, getShare, importShare };
 
 export default { fetch: (request: Request, env: Env) => handleRequest(request, env) } satisfies ExportedHandler<Env>;
 
@@ -81,6 +83,13 @@ export async function handleRequest(request: Request, env: Env, dependencies: Re
     }
     if (request.method === "POST" && url.pathname === "/items") {
       return json(await dependencies.createItem(db, user.uid, await readRequestJson(request)), 201, corsHeaders);
+    }
+    const itemMatch = url.pathname.match(/^\/items\/([^/]+)$/);
+    if (itemMatch && request.method === "PATCH") {
+      return json(await (dependencies.updateItem ?? defaultDependencies.updateItem!)(db, user.uid, itemMatch[1], await readRequestJson(request)), 200, corsHeaders);
+    }
+    if (itemMatch && request.method === "DELETE") {
+      return json(await (dependencies.deleteItem ?? defaultDependencies.deleteItem!)(db, user.uid, itemMatch[1]), 200, corsHeaders);
     }
     if (request.method === "GET" && url.pathname === "/categories") {
       return json({ categories: await (dependencies.listCategories ?? defaultDependencies.listCategories!)(db, user.uid) }, 200, corsHeaders);

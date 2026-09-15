@@ -3,6 +3,7 @@ import { apiRequest } from "../../lib/api";
 import { useAuth } from "../../hooks/use-auth";
 import { CloudActionCloud } from "./CloudActionCloud";
 import { ItemDialog } from "../items/ItemDialog";
+import { ItemDeleteDialog } from "../items/ItemDeleteDialog";
 import { ItemGraph } from "../items/ItemGraph";
 import { TagManagerDialog } from "../settings/TagManagerDialog";
 import { IntegrationDialog } from "../settings/IntegrationDialog";
@@ -25,6 +26,11 @@ interface RefreshOptions {
 
 interface CategoryItemsRefreshOptions extends RefreshOptions {
   select?: boolean;
+}
+
+interface PendingItemAction {
+  type: "edit" | "delete";
+  item: CloudyItem;
 }
 
 function useActionCloudIdle(menuOpen: boolean) {
@@ -64,7 +70,13 @@ export function CloudyShell() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isItemDialogOpen, setIsItemDialogOpen] = useState(false);
   const [isItemDialogClosing, setIsItemDialogClosing] = useState(false);
+  const [editingItem, setEditingItem] = useState<CloudyItem | null>(null);
+  const [detailItem, setDetailItem] = useState<CloudyItem | null>(null);
   const [isItemDetailOpen, setIsItemDetailOpen] = useState(false);
+  const [pendingItemAction, setPendingItemAction] = useState<PendingItemAction | null>(null);
+  const [deletingItem, setDeletingItem] = useState<CloudyItem | null>(null);
+  const [isItemDeleteOpen, setIsItemDeleteOpen] = useState(false);
+  const [isItemDeleteClosing, setIsItemDeleteClosing] = useState(false);
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [isIntegrationDialogOpen, setIsIntegrationDialogOpen] = useState(false);
   const [isIntegrationDialogClosing, setIsIntegrationDialogClosing] = useState(false);
@@ -76,7 +88,6 @@ export function CloudyShell() {
   const [searchItems, setSearchItems] = useState<CloudyItem[]>([]);
   const [searchItemsLoading, setSearchItemsLoading] = useState(false);
   const [searchItemsError, setSearchItemsError] = useState<string | null>(null);
-  const [searchDetailItem, setSearchDetailItem] = useState<CloudyItem | null>(null);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
@@ -90,9 +101,14 @@ export function CloudyShell() {
   const searchItemsRequestId = useRef(0);
   const searchItemsLoadedRef = useRef(false);
   const searchItemsPendingRequestId = useRef<number | null>(null);
+  const detailReturnItemRef = useRef<CloudyItem | null>(null);
+  const deleteSucceededRef = useRef(false);
+  const itemDialogClosingStartedRef = useRef(false);
+  const itemDeleteClosingStartedRef = useRef(false);
+  const categoryCacheRefreshGenerationRef = useRef(0);
   const isActionCloudHidden = useActionCloudIdle(isMenuOpen);
-  const isActionCloudSuppressed = isActionCloudHidden || isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen || searchDetailItem !== null;
-  const isModalOpen = isItemDialogOpen || isItemDialogClosing || isItemDetailOpen || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen || searchDetailItem !== null;
+  const isActionCloudSuppressed = isActionCloudHidden || isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
+  const isModalOpen = isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
   const photoURL = user?.photoURL ?? profile?.picture;
   const email = user?.email ?? profile?.email;
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId) ?? null;
@@ -224,6 +240,119 @@ export function CloudyShell() {
     if (shouldRefreshSearch) void loadSearchItems({ background: true, force: true, preserveItem: item });
   }, [loadCategories, loadCategoryItems, loadSearchItems, selectedCategoryId]);
 
+  const openItemDetail = useCallback((item: CloudyItem) => {
+    setDetailItem(item);
+    setIsItemDetailOpen(true);
+  }, []);
+
+  const startItemAction = useCallback((type: PendingItemAction["type"], item: CloudyItem) => {
+    setPendingItemAction({ type, item });
+    setIsItemDetailOpen(false);
+  }, []);
+
+  const handleItemDetailExited = useCallback(() => {
+    setDetailItem(null);
+    if (!pendingItemAction) return;
+    const action = pendingItemAction;
+    setPendingItemAction(null);
+    detailReturnItemRef.current = action.item;
+    if (action.type === "edit") {
+      setEditingItem(action.item);
+      setIsItemDialogOpen(true);
+      return;
+    }
+    deleteSucceededRef.current = false;
+    setDeletingItem(action.item);
+    setIsItemDeleteOpen(true);
+  }, [pendingItemAction]);
+
+  const invalidateItemRequests = useCallback(() => {
+    categoriesRequestId.current += 1;
+    categoryRequestId.current += 1;
+    searchItemsRequestId.current += 1;
+    categoryCacheRefreshGenerationRef.current += 1;
+    searchItemsPendingRequestId.current = null;
+    setCategoriesLoading(false);
+    setCategoryItemsLoading(false);
+    setSearchItemsLoading(false);
+  }, []);
+
+  const revalidateLoadedCategoryItems = useCallback((categoryIds: string[]) => {
+    const generation = categoryCacheRefreshGenerationRef.current;
+    for (const categoryId of categoryIds) {
+      void apiRequest<ItemsResponse>(`/categories/${encodeURIComponent(categoryId)}/items`).then((response) => {
+        if (generation !== categoryCacheRefreshGenerationRef.current) return;
+        setCategoryItems((current) => Object.prototype.hasOwnProperty.call(current, categoryId)
+          ? { ...current, [categoryId]: sortUniqueItems(response.items) }
+          : current);
+      }).catch(() => undefined);
+    }
+  }, []);
+
+  const reconcileItemMutation = useCallback((previousItem: CloudyItem, nextItem: CloudyItem | null) => {
+    const shouldRefreshSearch = searchItemsLoadedRef.current || searchItemsPendingRequestId.current !== null;
+    const loadedCategoryIds = Object.keys(categoryItems);
+    invalidateItemRequests();
+    setCategories((current) => reconcileCategories(current, previousItem, nextItem));
+    setCategoryItems((current) => reconcileCategoryItemCache(current, previousItem, nextItem));
+    if (shouldRefreshSearch) {
+      searchItemsLoadedRef.current = true;
+      setSearchItems((current) => nextItem ? upsertItem(current.filter((item) => item.id !== previousItem.id), nextItem) : current.filter((item) => item.id !== previousItem.id));
+      setSearchItemsError(null);
+    }
+    void loadCategories({ background: true });
+    revalidateLoadedCategoryItems(loadedCategoryIds);
+    if (shouldRefreshSearch) void loadSearchItems({ background: true, force: true });
+  }, [categoryItems, invalidateItemRequests, loadCategories, loadSearchItems, revalidateLoadedCategoryItems]);
+
+  const handleItemSaved = useCallback((item: CloudyItem, previousItem: CloudyItem | null) => {
+    if (!previousItem) {
+      handleItemCreated(item);
+      return;
+    }
+    reconcileItemMutation(previousItem, item);
+    detailReturnItemRef.current = item;
+    showSavedMessage(setSavedMessage, "Item atualizado na sua nuvem.");
+  }, [handleItemCreated, reconcileItemMutation]);
+
+  const handleItemDialogClosingChange = useCallback((closing: boolean) => {
+    setIsItemDialogClosing(closing);
+    if (closing) {
+      itemDialogClosingStartedRef.current = true;
+      return;
+    }
+    if (!itemDialogClosingStartedRef.current) return;
+    itemDialogClosingStartedRef.current = false;
+    if (!editingItem) return;
+    const returnItem = detailReturnItemRef.current;
+    detailReturnItemRef.current = null;
+    setEditingItem(null);
+    if (returnItem) openItemDetail(returnItem);
+  }, [editingItem, openItemDetail]);
+
+  const handleItemDeleted = useCallback((item: CloudyItem) => {
+    reconcileItemMutation(item, null);
+    deleteSucceededRef.current = true;
+    detailReturnItemRef.current = null;
+    showSavedMessage(setSavedMessage, "Item excluído da sua nuvem.");
+  }, [reconcileItemMutation]);
+
+  const handleItemDeleteClosingChange = useCallback((closing: boolean) => {
+    setIsItemDeleteClosing(closing);
+    if (closing) {
+      itemDeleteClosingStartedRef.current = true;
+      return;
+    }
+    if (!itemDeleteClosingStartedRef.current) return;
+    itemDeleteClosingStartedRef.current = false;
+    if (!deletingItem) return;
+    const returnItem = deleteSucceededRef.current ? null : detailReturnItemRef.current;
+    detailReturnItemRef.current = null;
+    deleteSucceededRef.current = false;
+    setDeletingItem(null);
+    if (returnItem) openItemDetail(returnItem);
+  }, [deletingItem, openItemDetail]);
+
   const handleCategoriesChange = useCallback((nextCategories: CategorySummary[]) => {
     const reservedCategories = categories.filter((category) => category.isVirtual || category.isSystem);
     const next = sortCategories([...nextCategories.filter((category) => !category.isVirtual && !category.isSystem), ...reservedCategories]);
@@ -261,10 +390,11 @@ export function CloudyShell() {
           isLoading={selectedCategoryId ? categoryItemsLoading : categoriesLoading}
           error={selectedCategoryId ? categoryItemsError : categoriesError}
           onRetry={retry}
-          onAddLink={() => setIsItemDialogOpen(true)}
+          onAddLink={() => { setEditingItem(null); setIsItemDialogOpen(true); }}
           onCategorySelect={(categoryId) => void loadCategoryItems(categoryId)}
           onCategoryBack={handleCategoryBack}
-          onDetailOpenChange={setIsItemDetailOpen}
+          onItemSelect={openItemDetail}
+          activeItemId={detailItem?.id}
         >
           <Suspense fallback={<div className="cloud-mascot" aria-hidden="true" />}>
             <CloudMascot />
@@ -272,16 +402,17 @@ export function CloudyShell() {
         </ItemGraph>
       </section>
       <aside className={`action-cloud-dock${isActionCloudSuppressed ? " action-cloud-dock--hidden" : ""}`} aria-label="Ações do Cloudy" aria-hidden={isActionCloudSuppressed}>
-        <CloudActionCloud email={email} name={profile?.name} onMenuOpenChange={setIsMenuOpen} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} onAddLink={() => setIsItemDialogOpen(true)} onSearch={openSearch} onTagsOpen={() => setIsTagManagerOpen(true)} onIntegrationsOpen={() => setIsIntegrationDialogOpen(true)} onShareOpen={() => setIsShareDialogOpen(true)} />
+        <CloudActionCloud email={email} name={profile?.name} onMenuOpenChange={setIsMenuOpen} onSignOut={signOutUser} photoURL={photoURL} disabled={isActionCloudSuppressed} onAddLink={() => { setEditingItem(null); setIsItemDialogOpen(true); }} onSearch={openSearch} onTagsOpen={() => setIsTagManagerOpen(true)} onIntegrationsOpen={() => setIsIntegrationDialogOpen(true)} onShareOpen={() => setIsShareDialogOpen(true)} />
       </aside>
       {savedMessage && <p className="workspace-toast" role="status">{savedMessage}</p>}
-      <ItemDialog open={isItemDialogOpen} categoryOptions={managedCategories} onClose={() => setIsItemDialogOpen(false)} onCreated={handleItemCreated} onClosingChange={setIsItemDialogClosing} />
+      <ItemDialog open={isItemDialogOpen} item={editingItem} categoryOptions={managedCategories} onClose={() => setIsItemDialogOpen(false)} onSaved={handleItemSaved} onClosingChange={handleItemDialogClosingChange} />
+      <ItemDeleteDialog open={isItemDeleteOpen} item={deletingItem} onClose={() => setIsItemDeleteOpen(false)} onDeleted={handleItemDeleted} onClosingChange={handleItemDeleteClosingChange} />
       <TagManagerDialog open={isTagManagerOpen} categories={managedCategories} onClose={() => setIsTagManagerOpen(false)} onCategoriesChange={handleCategoriesChange} />
       <IntegrationDialog open={isIntegrationDialogOpen} onClose={() => setIsIntegrationDialogOpen(false)} onClosingChange={setIsIntegrationDialogClosing} />
       <ShareDialog open={isShareDialogOpen} categories={managedCategories} onClose={() => setIsShareDialogOpen(false)} onClosingChange={setIsShareDialogClosing} />
       <SharedCategoriesDialog open={sharedShareId !== null} shareId={sharedShareId} currentCategoryCount={managedCategories.length} onClose={() => { setSharedShareId(null); clearShareUrl(); }} onImported={handleSharedCategoriesImported} onClosingChange={setIsSharedDialogClosing} />
-      <CommandPalette open={isSearchOpen} items={searchItems} isLoading={searchItemsLoading} error={searchItemsError} onClose={closeSearch} onRetry={retrySearch} onSelect={(item) => { closeSearch(); setSearchDetailItem(item); }} />
-      {searchDetailItem && <ItemDetail item={searchDetailItem} open onClose={() => setSearchDetailItem(null)} onExited={() => setSearchDetailItem(null)} />}
+      <CommandPalette open={isSearchOpen} items={searchItems} isLoading={searchItemsLoading} error={searchItemsError} onClose={closeSearch} onRetry={retrySearch} onSelect={(item) => { closeSearch(); openItemDetail(item); }} />
+      {detailItem && <ItemDetail item={detailItem} open={isItemDetailOpen} onClose={() => setIsItemDetailOpen(false)} onExited={handleItemDetailExited} onEdit={(item) => startItemAction("edit", item)} onDelete={(item) => startItemAction("delete", item)} />}
     </main>
   );
 }
@@ -314,6 +445,73 @@ function updateCategorySummary(categories: CategorySummary[], item: CloudyItem, 
     isVirtual: true
   };
   return sortCategories([...categories, newCategory]);
+}
+
+function reconcileCategories(categories: CategorySummary[], previousItem: CloudyItem, nextItem: CloudyItem | null): CategorySummary[] {
+  const previousCategoryId = getItemCategoryId(previousItem);
+  const nextCategoryId = nextItem ? getItemCategoryId(nextItem) : null;
+  const nextRecentItem = nextItem ? toCategoryRecentItem(nextItem) : null;
+
+  let reconciled = categories.map((category) => {
+    const isPreviousCategory = category.id === previousCategoryId;
+    const isNextCategory = nextCategoryId !== null && category.id === nextCategoryId;
+    if (!isPreviousCategory && !isNextCategory) return category;
+
+    if (isPreviousCategory && isNextCategory && nextRecentItem) {
+      return {
+        ...category,
+        recentItems: category.recentItems.map((recentItem) => recentItem.id === previousItem.id ? nextRecentItem : recentItem).sort(compareRecentItems).slice(0, 5)
+      };
+    }
+
+    if (isPreviousCategory) {
+      return {
+        ...category,
+        itemCount: Math.max(0, category.itemCount - 1),
+        recentItems: category.recentItems.filter((recentItem) => recentItem.id !== previousItem.id)
+      };
+    }
+
+    return {
+      ...category,
+      itemCount: category.itemCount + 1,
+      recentItems: nextRecentItem ? [nextRecentItem, ...category.recentItems.filter((recentItem) => recentItem.id !== nextRecentItem.id)].sort(compareRecentItems).slice(0, 5) : category.recentItems
+    };
+  });
+
+  if (nextItem && nextCategoryId && !reconciled.some((category) => category.id === nextCategoryId)) {
+    const nextCategory: CategorySummary = nextItem.category ? {
+      ...nextItem.category,
+      itemCount: 1,
+      recentItems: nextRecentItem ? [nextRecentItem] : []
+    } : {
+      id: UNTAGGED_CATEGORY_ID,
+      name: "Vazio",
+      color: EMPTY_CATEGORY_COLOR,
+      itemCount: 1,
+      recentItems: nextRecentItem ? [nextRecentItem] : [],
+      isVirtual: true
+    };
+    reconciled = [...reconciled, nextCategory];
+  }
+
+  return sortCategories(reconciled.filter((category) => category.id !== UNTAGGED_CATEGORY_ID || category.itemCount > 0));
+}
+
+function reconcileCategoryItemCache(cache: Record<string, CloudyItem[]>, previousItem: CloudyItem, nextItem: CloudyItem | null): Record<string, CloudyItem[]> {
+  const nextCategoryId = nextItem ? getItemCategoryId(nextItem) : null;
+  let changed = false;
+  const reconciled = Object.fromEntries(Object.entries(cache).map(([categoryId, items]) => {
+    const withoutPrevious = items.filter((item) => item.id !== previousItem.id);
+    const nextItems = nextItem && categoryId === nextCategoryId ? upsertItem(withoutPrevious, nextItem) : withoutPrevious;
+    if (nextItems.length !== items.length || nextItems.some((item, index) => item !== items[index])) changed = true;
+    return [categoryId, nextItems];
+  }));
+  return changed ? reconciled : cache;
+}
+
+function getItemCategoryId(item: CloudyItem): string {
+  return item.category?.id ?? UNTAGGED_CATEGORY_ID;
 }
 
 function compareRecentItems(first: CategoryRecentItem, second: CategoryRecentItem): number {

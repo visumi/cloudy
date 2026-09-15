@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useRef, useState, type AnimationEvent, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { Copy, Globe, LoaderCircle, MoveRight, Plus, X } from "lucide-react";
+import { Copy, Globe, LoaderCircle, MoveRight, Pencil, Plus, X } from "lucide-react";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
 import { ApiError, apiRequest } from "../../lib/api";
-import type { CategoryRef, CloudyItem, ItemPreview } from "../../types/api";
+import { INTEGRATIONS_CATEGORY_ID, type CategoryRef, type CloudyItem, type ItemPreview } from "../../types/api";
 import { FallbackImage } from "./ItemGraph";
 import { EMPTY_CATEGORY_COLOR, getCategoryColorStyle } from "./category-colors";
 
 interface ItemDialogProps {
   open: boolean;
+  item?: CloudyItem | null;
   categoryOptions: CategoryRef[];
   onClose: () => void;
-  onCreated: (item: CloudyItem) => void;
+  onSaved: (item: CloudyItem, previousItem: CloudyItem | null) => void;
   onClosingChange?: (closing: boolean) => void;
 }
 
@@ -20,9 +21,10 @@ const MAX_ITEM_NAME_LENGTH = 24;
 const MAX_ITEM_URL_LENGTH = 2048;
 const MAX_ITEM_OBSERVATION_LENGTH = 120;
 
-export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosingChange }: ItemDialogProps) {
+export function ItemDialog({ open, item = null, categoryOptions, onClose, onSaved, onClosingChange }: ItemDialogProps) {
   const [url, setUrl] = useState("");
   const [name, setName] = useState("");
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [categoryName, setCategoryName] = useState("");
   const [categoryColor, setCategoryColor] = useState(EMPTY_CATEGORY_COLOR);
   const [observation, setObservation] = useState("");
@@ -93,19 +95,21 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
 
   useEffect(() => {
     if (!open) return;
-    setUrl("");
-    setName("");
-    setCategoryName("");
-    setCategoryColor(EMPTY_CATEGORY_COLOR);
-    setObservation("");
-    setPreview(null);
+    previewRequestId.current += 1;
+    setUrl(item?.url ?? "");
+    setName(item?.name ?? "");
+    setCategoryId(item?.category?.id ?? null);
+    setCategoryName(item?.category?.name ?? "");
+    setCategoryColor(item?.category?.color ?? EMPTY_CATEGORY_COLOR);
+    setObservation(item?.observation ?? "");
+    setPreview(item ? { title: item.name, imageUrl: item.imageUrl, faviconUrl: item.faviconUrl } : null);
     setPreviewMessage(null);
     setError(null);
     setSaving(false);
     setShowRequiredError(false);
-    nameTouched.current = false;
+    nameTouched.current = item !== null;
     const previousActiveElement = document.activeElement as HTMLElement | null;
-    const focusTimer = window.setTimeout(() => urlInputRef.current?.focus(), 0);
+    const focusTimer = window.setTimeout(() => (item ? nameInputRef.current : urlInputRef.current)?.focus(), 0);
     const handleDialogKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         requestClose();
@@ -130,7 +134,7 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
       document.removeEventListener("keydown", handleDialogKeyDown);
       previousActiveElement?.focus?.();
     };
-  }, [open, requestClose]);
+  }, [item, open, requestClose]);
 
   if (!shouldRender) return null;
 
@@ -140,6 +144,13 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
 
   const loadPreview = async () => {
     if (!url.trim()) return;
+    if (item && url.trim() === item.url) {
+      previewRequestId.current += 1;
+      setPreview({ title: item.name, imageUrl: item.imageUrl, faviconUrl: item.faviconUrl });
+      setPreviewLoading(false);
+      setPreviewMessage(null);
+      return;
+    }
     const requestId = ++previewRequestId.current;
     setPreviewLoading(true);
     setPreviewMessage(null);
@@ -159,6 +170,7 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
   };
 
   const selectCategory = (category: CategoryRef) => {
+    setCategoryId(category.id);
     setCategoryName(category.name);
     setCategoryColor(category.color);
   };
@@ -176,14 +188,16 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
     setShowRequiredError(false);
     setSaving(true);
     try {
-      const item = await apiRequest<CloudyItem>("/items", {
-        method: "POST",
-        body: JSON.stringify({ name, url: url.trim() || undefined, categoryName, categoryColor, observation: observation.trim() || undefined })
+      const savedItem = await apiRequest<CloudyItem>(item ? `/items/${encodeURIComponent(item.id)}` : "/items", {
+        method: item ? "PATCH" : "POST",
+        body: item
+          ? JSON.stringify({ name, url: url.trim() || null, categoryId, observation: observation.trim() || null })
+          : JSON.stringify({ name, url: url.trim() || undefined, categoryName, categoryColor, observation: observation.trim() || undefined })
       });
-      onCreated(item);
+      onSaved(savedItem, item);
       requestClose();
     } catch (submitError) {
-      setError(formatItemError(submitError, "Não foi possível salvar este item agora."));
+      setError(formatItemError(submitError, item ? "Não foi possível atualizar este item agora." : "Não foi possível salvar este item agora."));
     } finally {
       setSaving(false);
     }
@@ -193,12 +207,12 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
     <div className="item-dialog-backdrop" data-closing={isClosing || undefined} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
       <section ref={dialogRef} className="item-dialog" data-closing={isClosing || undefined} data-dragging={drawerGesture.isDragging || undefined} onAnimationEnd={handleExitAnimationEnd} style={drawerGesture.panelStyle} role="dialog" aria-modal="true" aria-labelledby="item-dialog-title">
         <div className="mobile-drawer-handle" aria-hidden="true" {...drawerGesture.handleProps} />
-        <button className="modal-close item-dialog-close" type="button" aria-label="Fechar cadastro" onClick={requestClose}><X aria-hidden="true" /></button>
+        <button className="modal-close item-dialog-close" type="button" aria-label={item ? "Fechar edição" : "Fechar cadastro"} onClick={requestClose}><X aria-hidden="true" /></button>
         <div className="modal-heading item-dialog-heading">
-          <div className="modal-heading-icon item-dialog-heading-icon" aria-hidden="true"><Plus /></div>
+          <div className="modal-heading-icon item-dialog-heading-icon" aria-hidden="true">{item ? <Pencil /> : <Plus />}</div>
           <div className="modal-heading-copy">
-            <h2 id="item-dialog-title">Criar item</h2>
-            <p>Preencha os dados abaixo</p>
+            <h2 id="item-dialog-title">{item ? "Editar item" : "Criar item"}</h2>
+            <p>{item ? "Atualize os dados abaixo" : "Preencha os dados abaixo"}</p>
           </div>
         </div>
         <form noValidate onSubmit={submit}>
@@ -273,12 +287,12 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
               type="button"
               aria-pressed={!categoryName}
               style={getCategoryColorStyle(EMPTY_CATEGORY_COLOR)}
-              onClick={() => { setCategoryName(""); setCategoryColor(EMPTY_CATEGORY_COLOR); }}
+              onClick={() => { setCategoryId(null); setCategoryName(""); setCategoryColor(EMPTY_CATEGORY_COLOR); }}
               >
                 <span className="category-orbit-dot" aria-hidden="true" />
                 <span>Vazio</span>
             </button>
-            {categoryOptions.map((category, index) => (
+            {(item?.category?.id === INTEGRATIONS_CATEGORY_ID ? [item.category, ...categoryOptions.filter((category) => category.id !== INTEGRATIONS_CATEGORY_ID)] : categoryOptions).map((category, index) => (
               <button
                 className={`category-orbit-tag category-orbit-tag--${index % 4}${categoryName.localeCompare(category.name, "pt-BR", { sensitivity: "base" }) === 0 ? " category-orbit-tag--selected" : ""}`}
                 key={category.id}
@@ -300,8 +314,8 @@ export function ItemDialog({ open, categoryOptions, onClose, onCreated, onClosin
             </p>
           )}
           {error && <p className="item-dialog-error" role="alert"><span>{error}</span></p>}
-          <button className="button-action item-dialog-submit" type="submit" disabled={saving} aria-busy={saving} aria-label={saving ? "Salvando..." : "Salvar"}>
-            {saving ? <><LoaderCircle className="button-loading-spinner" aria-hidden="true" /> <span>Salvando…</span></> : "Salvar"}
+          <button className="button-action item-dialog-submit" type="submit" disabled={saving} aria-busy={saving} aria-label={saving ? "Salvando..." : item ? "Salvar alterações" : "Salvar"}>
+            {saving ? <><LoaderCircle className="button-loading-spinner" aria-hidden="true" /> <span>Salvando…</span></> : item ? "Salvar alterações" : "Salvar"}
           </button>
         </form>
       </section>
@@ -319,6 +333,10 @@ function formatItemError(error: unknown, fallback: string): string {
     invalid_item_name: "Escolha um nome de até 24 caracteres.",
     invalid_category_name: "Informe uma coleção de até 12 caracteres.",
     invalid_item_observation: "A observação deve ter até 120 caracteres.",
+    invalid_category_id: "Escolha uma coleção válida.",
+    item_not_found: "Este item não está mais disponível.",
+    category_not_found: "A coleção escolhida não está mais disponível.",
+    system_category: "Não foi possível mover este item para Integrações.",
     category_limit_reached: "Você pode criar até 15 coleções.",
     category_item_limit_reached: "Essa coleção já tem 100 itens."
   };

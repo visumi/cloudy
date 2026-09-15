@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type AnimationEvent, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Blocks, Check, Copy, Ghost, Globe, NotepadText, X } from "lucide-react";
+import { ArrowLeft, Blocks, Check, Copy, EllipsisVertical, Ghost, Globe, NotepadText, Pencil, Trash2, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuItem } from "../../components/ui/dropdown-menu";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
 import { INTEGRATIONS_CATEGORY_ID, type CategorySummary, type CloudyItem } from "../../types/api";
 import { buildCategoryGraphLayout, buildCategoryItemGraphLayout } from "./item-graph";
@@ -46,7 +47,8 @@ interface ItemGraphProps {
   onAddLink: () => void;
   onCategorySelect: (categoryId: string) => void;
   onCategoryBack: () => void;
-  onDetailOpenChange?: (open: boolean) => void;
+  onItemSelect: (item: CloudyItem) => void;
+  activeItemId?: string | null;
   children: ReactNode;
 }
 
@@ -56,33 +58,13 @@ const OVERVIEW_GRAPH_TRANSITION_DURATION = 320;
 
 type GraphViewTransition = "overview" | "to-category" | "category" | "to-overview";
 
-export function ItemGraph({ categories, items, selectedCategory, isLoading, error, onRetry, onAddLink, onCategorySelect, onCategoryBack, onDetailOpenChange, children }: ItemGraphProps) {
+export function ItemGraph({ categories, items, selectedCategory, isLoading, error, onRetry, onAddLink, onCategorySelect, onCategoryBack, onItemSelect, activeItemId = null, children }: ItemGraphProps) {
   const categoryLayout = useMemo(() => buildCategoryGraphLayout(categories), [categories]);
   const itemLayout = useMemo(() => buildCategoryItemGraphLayout(items), [items]);
   const isCategoryView = selectedCategory !== null;
   const [viewTransition, setViewTransition] = useState<GraphViewTransition>(selectedCategory ? "category" : "overview");
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const [detailItem, setDetailItem] = useState<CloudyItem | null>(null);
   const previousCategoryRef = useRef<CategorySummary | null>(selectedCategory);
   const viewTransitionTimerRef = useRef<number | undefined>(undefined);
-  const selectedItem = items.find((item) => item.id === selectedItemId) || null;
-
-  useEffect(() => {
-    if (selectedItemId && !selectedItem) setSelectedItemId(null);
-  }, [selectedItem, selectedItemId]);
-
-  useEffect(() => {
-    if (selectedItem) setDetailItem(selectedItem);
-  }, [selectedItem]);
-
-  useEffect(() => {
-    onDetailOpenChange?.(detailItem !== null);
-  }, [detailItem, onDetailOpenChange]);
-
-  useEffect(() => {
-    setSelectedItemId(null);
-    setDetailItem(null);
-  }, [isCategoryView, items.length, selectedCategory?.id]);
 
   useLayoutEffect(() => {
     const previousCategory = previousCategoryRef.current;
@@ -178,13 +160,13 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
           <div key={`items-${selectedCategory?.id ?? "overview"}`} className={`graph-nodes graph-nodes--items${items.length > 20 ? " graph-nodes--dense" : ""}`} data-state={itemNodesState} aria-hidden={itemNodesState === "hidden" || itemNodesState === "exiting"} aria-label={selectedCategory ? `Itens de ${selectedCategory.name}` : "Itens da coleção"}>
             {itemLayout.nodes.map(({ item, left, top }, index) => (
               <button
-                className={`item-node${selectedItemId === item.id ? " item-node--selected" : ""}`}
+                className={`item-node${activeItemId === item.id ? " item-node--selected" : ""}`}
                 key={item.id}
                 type="button"
                 style={{ left: `${left}%`, top: `${top}%`, zIndex: items.length - index, "--graph-delay": `${Math.min(index, 7) * 12}ms`, "--graph-card-alpha": items.length > 20 ? (index % 4 === 1 ? ".72" : index % 4 === 2 ? ".84" : ".9") : ".94" } as CSSProperties}
                 aria-label={`${item.name}, ${item.category ? `coleção ${item.category.name}` : "coleção Vazio"}`}
-                aria-pressed={selectedItemId === item.id}
-                onClick={() => { setSelectedItemId(item.id); setDetailItem(item); }}
+                aria-pressed={activeItemId === item.id}
+                onClick={() => onItemSelect(item)}
               >
                 <FallbackImage src={item.imageUrl} alt="" className="item-node-image" loading="lazy" />
                 <span className="item-node-copy">
@@ -216,7 +198,6 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
           <button className="button-action" type="button" onClick={onCategoryBack}>Voltar para coleções</button>
         </div>
       )}
-      {detailItem && <ItemDetail item={detailItem} open={selectedItemId === detailItem.id} onClose={() => setSelectedItemId(null)} onExited={() => setDetailItem(null)} />}
     </div>
   );
 }
@@ -227,13 +208,16 @@ function formatItemCount(count: number): string {
 
 const ITEM_DETAIL_EXIT_DURATION = 200;
 
-export function ItemDetail({ item, open, onClose, onExited }: { item: CloudyItem; open: boolean; onClose: () => void; onExited: () => void }) {
+export function ItemDetail({ item, open, onClose, onExited, onEdit, onDelete }: { item: CloudyItem; open: boolean; onClose: () => void; onExited: () => void; onEdit: (item: CloudyItem) => void; onDelete: (item: CloudyItem) => void }) {
   const [shouldRender, setShouldRender] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const exitTimerRef = useRef<number | undefined>(undefined);
   const copyTimerRef = useRef<number | undefined>(undefined);
   const closingRef = useRef(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
 
   const finishExit = useCallback(() => {
     if (exitTimerRef.current !== undefined) window.clearTimeout(exitTimerRef.current);
@@ -283,6 +267,33 @@ export function ItemDetail({ item, open, onClose, onExited }: { item: CloudyItem
     if (copyTimerRef.current !== undefined) window.clearTimeout(copyTimerRef.current);
   }, []);
 
+  useEffect(() => {
+    if (!isMenuOpen || !menuRef.current) return;
+    menuRef.current.querySelector<HTMLButtonElement>("[role='menuitem']")?.focus();
+  }, [isMenuOpen]);
+
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const closeMenu = (restoreFocus: boolean) => {
+      setIsMenuOpen(false);
+      if (restoreFocus) window.setTimeout(() => menuTriggerRef.current?.focus(), 0);
+    };
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) closeMenu(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      closeMenu(true);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape, true);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape, true);
+    };
+  }, [isMenuOpen]);
+
   const handleCopy = useCallback(async () => {
     if (!item.url) return;
     try {
@@ -311,8 +322,32 @@ export function ItemDetail({ item, open, onClose, onExited }: { item: CloudyItem
             <FallbackImage src={item.faviconUrl} alt="" className="item-detail-favicon" />
             <span className="item-detail-category" style={getCategoryColorStyle(category?.color ?? EMPTY_CATEGORY_COLOR)}><span aria-hidden="true" /><span>{category?.name ?? "Vazio"}</span></span>
           </div>
-          <h2 id="item-detail-title">{item.name}</h2>
-          <p className="item-detail-saved-at">Salvo em: {formatSavedDate(item.createdAt)}</p>
+          <div className="item-detail-heading-row">
+            <div className="item-detail-heading-copy">
+              <h2 id="item-detail-title">{item.name}</h2>
+              <p className="item-detail-saved-at">Salvo em: {formatSavedDate(item.createdAt)}</p>
+            </div>
+            <div ref={menuRef} className="item-detail-menu-wrap">
+              <button
+                ref={menuTriggerRef}
+                className="item-detail-menu-trigger"
+                type="button"
+                aria-label={`Abrir ações de ${item.name}`}
+                aria-haspopup="menu"
+                aria-expanded={isMenuOpen}
+                aria-controls={`item-detail-menu-${item.id}`}
+                onClick={() => setIsMenuOpen((current) => !current)}
+              >
+                <EllipsisVertical aria-hidden="true" />
+              </button>
+              {isMenuOpen && (
+                <DropdownMenu id={`item-detail-menu-${item.id}`} label={`Ações de ${item.name}`}>
+                  <DropdownMenuItem icon={Pencil} onClick={() => { setIsMenuOpen(false); onEdit(item); }}>Editar</DropdownMenuItem>
+                  <DropdownMenuItem icon={Trash2} destructive onClick={() => { setIsMenuOpen(false); onDelete(item); }}>Excluir</DropdownMenuItem>
+                </DropdownMenu>
+              )}
+            </div>
+          </div>
           {item.observation && (
             <div className="item-detail-observation">
               <NotepadText aria-hidden="true" strokeWidth={2} />

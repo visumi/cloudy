@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { INTEGRATIONS_CATEGORY_ID, type CategorySummary, type CloudyItem } from "../../types/api";
-import { ItemGraph } from "./ItemGraph";
+import { ItemDetail, ItemGraph } from "./ItemGraph";
 
 const category: CategorySummary = {
   id: "category-1",
@@ -39,6 +39,7 @@ function renderGraph(overrides: Partial<React.ComponentProps<typeof ItemGraph>> 
       onAddLink={() => undefined}
       onCategorySelect={() => undefined}
       onCategoryBack={() => undefined}
+      onItemSelect={() => undefined}
       {...overrides}
     >
       <div aria-hidden="true" />
@@ -73,15 +74,25 @@ describe("ItemGraph", () => {
     expect(backButton.querySelector("span")).not.toBeInTheDocument();
   });
 
-  it("substitui os cards por itens e mantém o drawer clicável", async () => {
+  it("substitui os cards por itens e informa o item selecionado", async () => {
     const user = userEvent.setup();
-    renderGraph({ categories: [category], selectedCategory: category, items: [item] });
+    const onItemSelect = vi.fn();
+    renderGraph({ categories: [category], selectedCategory: category, items: [item], onItemSelect });
 
     expect(screen.queryByRole("button", { name: "Coleção Ideias, 2 itens" })).not.toBeInTheDocument();
     expect(document.querySelector(".graph-cloud")).toBeInTheDocument();
     expect(document.querySelectorAll(".graph-connection-layer--items line")).toHaveLength(1);
     expect(document.querySelector(".graph-connection-layer--items .graph-connection--category")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Página de inspiração, coleção Ideias" }));
+    expect(onItemSelect).toHaveBeenCalledWith(item);
+  });
+
+  it("exibe detalhes, copia o link e abre o menu de ações", async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    const onDelete = vi.fn();
+    render(<ItemDetail item={item} open onClose={vi.fn()} onExited={vi.fn()} onEdit={onEdit} onDelete={onDelete} />);
+
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Salvo em: 10/09/2026")).toBeInTheDocument();
     expect(screen.getByText("Uma referência para revisar depois.", { selector: ".item-detail-observation-text" })).toBeInTheDocument();
@@ -90,16 +101,32 @@ describe("ItemGraph", () => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn().mockResolvedValue(undefined) } });
     await user.click(copyButton);
     await waitFor(() => expect(copyButton).toHaveAccessibleName("Link copiado"));
+
+    const menuTrigger = screen.getByRole("button", { name: "Abrir ações de Página de inspiração" });
+    expect(menuTrigger.closest(".item-detail-heading-row")).toContainElement(screen.getByText("Salvo em: 10/09/2026"));
+    await user.click(menuTrigger);
+    expect(screen.getByRole("menu", { name: "Ações de Página de inspiração" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Editar" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(menuTrigger).toHaveFocus());
+
+    await user.click(menuTrigger);
+    await user.click(screen.getByRole("heading", { name: "Página de inspiração" }));
+    expect(screen.queryByRole("menu", { name: "Ações de Página de inspiração" })).not.toBeInTheDocument();
+    await user.click(menuTrigger);
+    await user.click(screen.getByRole("menuitem", { name: "Editar" }));
+    expect(onEdit).toHaveBeenCalledWith(item);
   });
 
   it("exibe a coleção Vazio em cinza", async () => {
     const user = userEvent.setup();
     const emptyCategory: CategorySummary = { id: "__untagged__", name: "Vazio", color: "#CBD5E1", itemCount: 1, recentItems: [], isVirtual: true };
-    renderGraph({ categories: [emptyCategory], selectedCategory: emptyCategory, items: [{ ...item, category: null }] });
+    const onItemSelect = vi.fn();
+    renderGraph({ categories: [emptyCategory], selectedCategory: emptyCategory, items: [{ ...item, category: null }], onItemSelect });
 
     expect(screen.getByRole("button", { name: "Página de inspiração, coleção Vazio" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Página de inspiração, coleção Vazio" }));
-    expect(await screen.findByText("Vazio", { selector: ".item-detail-category > span:last-child" })).toBeInTheDocument();
+    expect(onItemSelect).toHaveBeenCalledWith(expect.objectContaining({ category: null }));
   });
 
   it("renderiza Integrações com o ícone do menu e abre sua coleção", async () => {

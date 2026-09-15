@@ -67,6 +67,23 @@ describe("API base", () => {
     expect(createItem).toHaveBeenCalledWith(expect.anything(), "uid-1", { name: "Referência", url: "https://example.com", categoryName: "Ideias" });
   });
 
+  it("edita e exclui um item autenticado", async () => {
+    const updateItem = vi.fn(async () => ({ id: "item-1", name: "Referência revisada" }));
+    const deleteItem = vi.fn(async () => ({ id: "item-1" }));
+    const dependencies: RequestDependencies = { authenticate: vi.fn(async () => identity), createDatabaseClient: vi.fn(() => ({} as never)), resolveAuthenticatedUser: vi.fn(async () => profile), upsertUser: vi.fn(), listItems: vi.fn(), createItem: vi.fn(), updateItem, deleteItem, previewItem: vi.fn() };
+    const payload = { name: "Referência revisada", url: null, observation: null, categoryId: null };
+
+    const updateResponse = await handleRequest(new Request("https://cloudy-api.isumi.com.br/items/item-1", { method: "PATCH", headers: { Authorization: "Bearer test", "Content-Type": "application/json" }, body: JSON.stringify(payload) }), env, dependencies);
+    expect(updateResponse.status).toBe(200);
+    await expect(updateResponse.json()).resolves.toEqual({ id: "item-1", name: "Referência revisada" });
+    expect(updateItem).toHaveBeenCalledWith(expect.anything(), "uid-1", "item-1", payload);
+
+    const deleteResponse = await handleRequest(new Request("https://cloudy-api.isumi.com.br/items/item-1", { method: "DELETE", headers: { Authorization: "Bearer test" } }), env, dependencies);
+    expect(deleteResponse.status).toBe(200);
+    await expect(deleteResponse.json()).resolves.toEqual({ id: "item-1" });
+    expect(deleteItem).toHaveBeenCalledWith(expect.anything(), "uid-1", "item-1");
+  });
+
   it("cria item pelo token restrito do Atalho", async () => {
     const createIntegrationItem = vi.fn(async () => ({ item: { id: "item-1" }, duplicate: false }));
     const authenticateShortcutToken = vi.fn(async () => ({ id: "token-1", userId: "uid-1" }));

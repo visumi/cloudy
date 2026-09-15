@@ -68,6 +68,13 @@ export interface CreateItemInput {
   observation: string | null;
 }
 
+export interface UpdateItemInput {
+  name: string;
+  url: string | null;
+  categoryId: string | null;
+  observation: string | null;
+}
+
 export interface CategoryInput {
   name: string;
   color: string;
@@ -256,6 +263,70 @@ export async function createItem(db: Client, userId: string, payload: unknown): 
   return mapItemRow(row);
 }
 
+export async function updateItem(db: Client, userId: string, itemId: string, payload: unknown): Promise<ItemRecord> {
+  const input = parseUpdateItemInput(payload);
+  const currentResult = await db.execute({
+    sql: `SELECT i.id, i.name, i.url, i.image_url, i.favicon_url, i.observation, i.system_category,
+      i.created_at, i.updated_at, c.id AS category_id, c.name AS category_name, c.color AS category_color
+      FROM items i
+      LEFT JOIN categories c ON c.id = i.category_id AND c.user_id = i.user_id
+      WHERE i.id = ? AND i.user_id = ?
+      LIMIT 1`,
+    args: [itemId, userId]
+  });
+  const currentRow = currentResult.rows[0] as DbRow | undefined;
+  if (!currentRow) throw new HttpError(404, "item_not_found");
+
+  const currentItem = mapItemRow(currentRow);
+  const currentCategoryId = currentItem.category?.id ?? null;
+  let nextCategoryId: string | null = null;
+  let nextSystemCategory: "integrations" | null = null;
+
+  if (input.categoryId === INTEGRATIONS_CATEGORY_ID) {
+    if (currentCategoryId !== INTEGRATIONS_CATEGORY_ID) throw new HttpError(403, "system_category");
+    nextSystemCategory = "integrations";
+  } else if (input.categoryId) {
+    const category = await db.execute({
+      sql: "SELECT id FROM categories WHERE id = ? AND user_id = ? LIMIT 1",
+      args: [input.categoryId, userId]
+    });
+    if (category.rows.length === 0) throw new HttpError(404, "category_not_found");
+    nextCategoryId = input.categoryId;
+  }
+
+  const nextGroupId = nextSystemCategory ? INTEGRATIONS_CATEGORY_ID : nextCategoryId;
+  if (currentCategoryId !== nextGroupId) await ensureCategoryItemCapacity(db, userId, nextCategoryId);
+
+  const preview = input.url === currentItem.url
+    ? { imageUrl: currentItem.imageUrl, faviconUrl: currentItem.faviconUrl }
+    : input.url
+      ? await resolveLinkPreview(input.url)
+      : { imageUrl: null, faviconUrl: null };
+
+  await db.execute({
+    sql: `UPDATE items
+      SET category_id = ?, system_category = ?, name = ?, url = ?, image_url = ?, favicon_url = ?, observation = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?`,
+    args: [nextCategoryId, nextSystemCategory, input.name, input.url, preview.imageUrl, preview.faviconUrl, input.observation, itemId, userId]
+  });
+
+  return getItem(db, userId, itemId);
+}
+
+export async function deleteItem(db: Client, userId: string, itemId: string): Promise<{ id: string }> {
+  const current = await db.execute({
+    sql: "SELECT id FROM items WHERE id = ? AND user_id = ? LIMIT 1",
+    args: [itemId, userId]
+  });
+  if (current.rows.length === 0) throw new HttpError(404, "item_not_found");
+
+  await db.execute({
+    sql: "DELETE FROM items WHERE id = ? AND user_id = ?",
+    args: [itemId, userId]
+  });
+  return { id: itemId };
+}
+
 export interface IntegrationItemInput {
   url: string;
   text: string | null;
@@ -371,6 +442,23 @@ export function parseCreateItemInput(payload: unknown): CreateItemInput {
   if (categoryName && categoryName.length > MAX_CATEGORY_NAME_LENGTH) throw new HttpError(400, "invalid_category_name");
   if (observation && observation.length > MAX_ITEM_OBSERVATION_LENGTH) throw new HttpError(400, "invalid_item_observation");
   return { name, url, categoryName, categoryColor, observation };
+}
+
+export function parseUpdateItemInput(payload: unknown): UpdateItemInput {
+  const source = readObject(payload);
+  if (!("url" in source)) throw new HttpError(400, "invalid_url");
+  if (!("observation" in source)) throw new HttpError(400, "invalid_item_observation");
+  if (!("categoryId" in source)) throw new HttpError(400, "invalid_category_id");
+
+  const name = normalizeText(readRequiredString(source.name, "item_name"));
+  const url = readOptionalUrl(source.url);
+  const observation = source.observation == null ? null : normalizeText(readRequiredString(source.observation, "item_observation")) || null;
+  const categoryId = source.categoryId == null ? null : normalizeText(readRequiredString(source.categoryId, "category_id"));
+
+  if (name.length < 1 || name.length > MAX_ITEM_NAME_LENGTH) throw new HttpError(400, "invalid_item_name");
+  if (observation && observation.length > MAX_ITEM_OBSERVATION_LENGTH) throw new HttpError(400, "invalid_item_observation");
+  if (categoryId === "") throw new HttpError(400, "invalid_category_id");
+  return { name, url, categoryId, observation };
 }
 
 export function parseIntegrationItemInput(payload: unknown): IntegrationItemInput {
@@ -492,6 +580,21 @@ async function getCategory(db: Client, userId: string, categoryId: string): Prom
   if (!row) throw new HttpError(404, "category_not_found");
   const category = mapCategoryRow(row);
   return { ...category, recentItems: (await listRecentItemsForCategory(db, userId, categoryId)) };
+}
+
+async function getItem(db: Client, userId: string, itemId: string): Promise<ItemRecord> {
+  const result = await db.execute({
+    sql: `SELECT i.id, i.name, i.url, i.image_url, i.favicon_url, i.observation, i.system_category,
+      i.created_at, i.updated_at, c.id AS category_id, c.name AS category_name, c.color AS category_color
+      FROM items i
+      LEFT JOIN categories c ON c.id = i.category_id AND c.user_id = i.user_id
+      WHERE i.id = ? AND i.user_id = ?
+      LIMIT 1`,
+    args: [itemId, userId]
+  });
+  const row = result.rows[0] as DbRow | undefined;
+  if (!row) throw new HttpError(404, "item_not_found");
+  return mapItemRow(row);
 }
 
 async function ensureCategoryItemCapacity(db: Client, userId: string, categoryId: string | null): Promise<void> {
