@@ -49,6 +49,7 @@ export function buildCategoryGraphLayout(categories: CategorySummary[]): Categor
   const nodes: CategoryGraphNode[] = [];
   const ringCount = userCategories.length > 11 ? 2 : 1;
   const outerCount = ringCount === 1 ? userCategories.length : Math.ceil(userCategories.length / 2);
+  const usesBalancedIntegrationRing = systemCategories.length > 0 && (categories.length === 9 || categories.length === 10);
 
   userCategories.forEach((category, index) => {
     const ring = ringCount === 1 || index < outerCount ? 0 : 1;
@@ -58,7 +59,9 @@ export function buildCategoryGraphLayout(categories: CategorySummary[]): Categor
     const isExpandedSingleRing = ringCount === 1 && userCategories.length > 6;
     const baseAngle = (isTwoCategoryBranch ? -Math.PI * 2 / 3 : -Math.PI / 2) + (indexInRing * Math.PI * 2) / Math.max(countInRing, 1) + (ring === 1 ? Math.PI / Math.max(countInRing, 1) : 0);
     const rebalancedPosition = getRebalancedInnerCategoryPosition(ring, countInRing, indexInRing);
-    const angle = ringCount === 1 && countInRing >= 6
+    const angle = usesBalancedIntegrationRing
+      ? reserveBottomIntegrationAngle(baseAngle)
+      : ringCount === 1 && countInRing >= 6
       ? spreadLowerCategoryAngle(baseAngle)
       : spreadInnerLowerCategoryAngle(baseAngle, ring, countInRing, indexInRing);
     const radiusX = ring === 0 ? (isTwoCategoryBranch ? 42 : isExpandedSingleRing ? 42 : ringCount === 1 ? 34 : 44) : 29;
@@ -85,6 +88,13 @@ export function buildCategoryGraphLayout(categories: CategorySummary[]): Categor
     nodes: finalNodes,
     connections: finalNodes.map(({ left, top }) => ({ kind: "core", x1: 50, y1: 48, x2: left, y2: top }))
   };
+}
+
+function reserveBottomIntegrationAngle(angle: number): number {
+  const integrationGap = Math.PI / 9;
+  const distanceFromBottom = angle - Math.PI / 2;
+  if (Math.abs(distanceFromBottom) >= integrationGap) return angle;
+  return Math.PI / 2 + (distanceFromBottom <= 0 ? -integrationGap : integrationGap);
 }
 
 function spreadLowerCategoryAngle(angle: number): number {

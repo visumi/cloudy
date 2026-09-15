@@ -31,6 +31,21 @@ describe("item graph layout", () => {
     expect(layout.connections).toHaveLength(11);
   });
 
+  it.each([9, 10])("distribui %i coleções sem sobrepor cards ao lado de Integrações", (categoryCount) => {
+    const integration = { ...category("integrations", "Integrações"), id: INTEGRATIONS_CATEGORY_ID, isSystem: true };
+    const layout = buildCategoryGraphLayout([
+      ...Array.from({ length: categoryCount - 1 }, (_, index) => category(`category-${index}`, `Categoria ${index}`)),
+      integration
+    ]);
+    const overlappingPairs = layout.nodes.flatMap((node, index) => layout.nodes.slice(index + 1).filter((other) => (
+      Math.abs(node.left - other.left) < 10 && Math.abs(node.top - other.top) < 9
+    )));
+
+    expect(layout.nodes).toHaveLength(categoryCount);
+    expect(overlappingPairs).toHaveLength(0);
+    expect(layout.nodes.find((node) => node.category.id === INTEGRATIONS_CATEGORY_ID)).toMatchObject({ left: 50, top: 72 });
+  });
+
   it("separa 15 categorias em dois anéis e dá respiro à base da nuvem", () => {
     const categories = Array.from({ length: 15 }, (_, index) => category(`category-${index}`, `Categoria ${index}`));
     const layout = buildCategoryGraphLayout(categories);
