@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type AnimationEvent } from "react";
 import { createPortal } from "react-dom";
-import { Blocks, Check, Copy, KeyRound, LoaderCircle, X } from "lucide-react";
+import { Blocks, Check, Copy, ExternalLink, KeyRound, LoaderCircle, MessageCircle, X } from "lucide-react";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
 import { ApiError, apiBaseUrl, apiRequest } from "../../lib/api";
 
@@ -22,6 +22,7 @@ interface CreatedShortcutToken extends ShortcutTokenMetadata {
 }
 
 const INTEGRATION_DIALOG_EXIT_DURATION = 220;
+const discordInstallUrl = import.meta.env.VITE_DISCORD_INSTALL_URL || "";
 
 export function IntegrationDialog({ open, onClose, onClosingChange }: IntegrationDialogProps) {
   const [metadata, setMetadata] = useState<ShortcutTokenMetadata | null>(null);
@@ -205,8 +206,8 @@ export function IntegrationDialog({ open, onClose, onClosingChange }: Integratio
           <div className="modal-heading-icon integration-heading-icon" aria-hidden="true"><Blocks /></div>
           <div className="modal-heading-copy">
             <span className="item-dialog-kicker">Conecte sua nuvem</span>
-            <h2 id="integration-title">Integração com atalhos</h2>
-            <p>Salve links direto do botão Compartilhar do iPhone.</p>
+            <h2 id="integration-title">Integrações</h2>
+            <p>Salve links do iPhone e do Discord direto na sua nuvem.</p>
           </div>
         </div>
 
@@ -227,8 +228,8 @@ export function IntegrationDialog({ open, onClose, onClosingChange }: Integratio
                 <div className="integration-card-title">
                   <KeyRound aria-hidden="true" />
                   <div>
-                    <strong>Token do Atalho</strong>
-                    <p>Permite registrar novos links na coleção Integrações.</p>
+                    <strong>Token de integração</strong>
+                    <p>O mesmo token conecta o Atalho e o bot do Discord à coleção Integrações.</p>
                   </div>
                 </div>
                 <span className={`integration-status-pill${metadata?.configured || token ? " integration-status-pill--active" : ""}`}>{token ? "NOVO" : metadata?.configured ? "ATIVO" : "INATIVO"}</span>
@@ -270,6 +271,31 @@ export function IntegrationDialog({ open, onClose, onClosingChange }: Integratio
                 <li>Envie um JSON somente com <code>url</code>.</li>
               </ol>
             </div>
+            <div className="integration-card integration-discord-card">
+              <div className="integration-card-heading">
+                <div className="integration-card-title">
+                  <MessageCircle aria-hidden="true" />
+                  <div>
+                    <strong>Bot do Discord</strong>
+                    <p>Conecte sua conta e salve links por comando ou pelo menu de uma mensagem.</p>
+                  </div>
+                </div>
+              </div>
+              {discordInstallUrl ? (
+                <a className="button-action integration-discord-link" href={discordInstallUrl} target="_blank" rel="noreferrer">
+                  <ExternalLink aria-hidden="true" />
+                  <span>Adicionar Cloudy ao Discord</span>
+                </a>
+              ) : (
+                <p className="integration-message">O link de instalação do Discord ainda não foi configurado.</p>
+              )}
+              <ol className="integration-steps">
+                <li>Abra uma DM com o Cloudy depois de instalar o app.</li>
+                <li>Use <code>/cloudy conectar</code> e informe este token.</li>
+                <li>Salve com <code>/cloudy salvar</code> ou “Salvar no Cloudy” em uma mensagem.</li>
+              </ol>
+            </div>
+            <p className="integration-message integration-message--warning">Ao gerar um novo token, atualize o Atalho e conecte o Discord novamente.</p>
           </>
         )}
       </section>

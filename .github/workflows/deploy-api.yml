@@ -3,7 +3,7 @@ name: Deploy API
 on:
   push:
     branches: [main]
-    paths: ["apps/api/**", "wrangler.jsonc", ".github/workflows/deploy-api.yml"]
+    paths: ["apps/api/**", "db/migrations/**", "wrangler.jsonc", ".github/workflows/deploy-api.yml"]
   workflow_dispatch:
 
 permissions:
@@ -27,12 +27,13 @@ jobs:
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
+          DISCORD_PUBLIC_KEY: ${{ secrets.DISCORD_PUBLIC_KEY }}
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN" && test -n "$CLOUDFLARE_ACCOUNT_ID"
-          test -n "$TURSO_URL" && test -n "$TURSO_AUTH_TOKEN" && test -n "$FIREBASE_PROJECT_ID" && test -n "$OWNER_EMAIL"
+          test -n "$TURSO_URL" && test -n "$TURSO_AUTH_TOKEN" && test -n "$FIREBASE_PROJECT_ID" && test -n "$OWNER_EMAIL" && test -n "$DISCORD_PUBLIC_KEY"
           trap 'rm -f .worker-secrets.json' EXIT
-          node -e 'require("fs").writeFileSync(".worker-secrets.json", JSON.stringify(Object.fromEntries(["TURSO_URL","TURSO_AUTH_TOKEN","FIREBASE_PROJECT_ID","OWNER_EMAIL"].map((name) => [name, process.env[name]]))))'
+          node -e 'require("fs").writeFileSync(".worker-secrets.json", JSON.stringify(Object.fromEntries(["TURSO_URL","TURSO_AUTH_TOKEN","FIREBASE_PROJECT_ID","OWNER_EMAIL","DISCORD_PUBLIC_KEY"].map((name) => [name, process.env[name]]))))'
           npx wrangler secret bulk .worker-secrets.json
       - name: Deploy Worker
         env:

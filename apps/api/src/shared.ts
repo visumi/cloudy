@@ -6,6 +6,7 @@ export interface Env {
   FIREBASE_PROJECT_ID: string;
   OWNER_EMAIL: string;
   ALLOWED_ORIGIN?: string;
+  DISCORD_PUBLIC_KEY?: string;
 }
 
 export type AccessRole = "owner" | "member";

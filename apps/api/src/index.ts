@@ -1,6 +1,8 @@
 import { authenticate, createAccessGrant, listAccessGrants, requireOwner, resolveAuthenticatedUser, updateAccessGrant, upsertUser } from "./access";
 import { bulkItemAction, createCategory, createIntegrationItem, createItem, deleteCategory, deleteItem, listCategories, listCategoryItems, listItems, previewItem, updateCategory, updateItem } from "./items";
 import { authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken } from "./integration-tokens";
+import { connectDiscord, disconnectDiscord, getDiscordConnection, touchDiscordConnection } from "./discord-connections";
+import { handleDiscordInteraction } from "./discord";
 import { createShare, getShare, importShare } from "./shares";
 import { fetchMascotWeather, parseMascotWeatherCoordinates } from "./weather";
 import { createDatabaseClient, type AuthUser, type Env, type HttpError } from "./shared";
@@ -28,6 +30,10 @@ export interface RequestDependencies {
   createShortcutToken?: typeof createShortcutToken;
   getShortcutToken?: typeof getShortcutToken;
   revokeShortcutToken?: typeof revokeShortcutToken;
+  connectDiscord?: typeof connectDiscord;
+  getDiscordConnection?: typeof getDiscordConnection;
+  touchDiscordConnection?: typeof touchDiscordConnection;
+  disconnectDiscord?: typeof disconnectDiscord;
   createShare?: typeof createShare;
   getShare?: typeof getShare;
   importShare?: typeof importShare;
@@ -36,17 +42,28 @@ export interface RequestDependencies {
   updateAccessGrant?: typeof updateAccessGrant;
   fetchMascotWeather?: typeof fetchMascotWeather;
 }
-const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, listCategoryItems, createItem, updateItem, deleteItem, bulkItemAction, previewItem, listCategories, createCategory, updateCategory, deleteCategory, createIntegrationItem, authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken, createShare, getShare, importShare, listAccessGrants, createAccessGrant, updateAccessGrant, fetchMascotWeather };
+const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, listCategoryItems, createItem, updateItem, deleteItem, bulkItemAction, previewItem, listCategories, createCategory, updateCategory, deleteCategory, createIntegrationItem, authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken, connectDiscord, getDiscordConnection, touchDiscordConnection, disconnectDiscord, createShare, getShare, importShare, listAccessGrants, createAccessGrant, updateAccessGrant, fetchMascotWeather };
 
-export default { fetch: (request: Request, env: Env) => handleRequest(request, env) } satisfies ExportedHandler<Env>;
+export default { fetch: (request: Request, env: Env, ctx: ExecutionContext) => handleRequest(request, env, defaultDependencies, ctx) } satisfies ExportedHandler<Env>;
 
-export async function handleRequest(request: Request, env: Env, dependencies: RequestDependencies = defaultDependencies): Promise<Response> {
+export async function handleRequest(request: Request, env: Env, dependencies: RequestDependencies = defaultDependencies, ctx?: ExecutionContext): Promise<Response> {
   const corsHeaders = buildCorsHeaders(request, env);
   const url = new URL(request.url);
   const responseHeaders = url.pathname.startsWith("/admin/access-users") ? noStoreHeaders(corsHeaders) : corsHeaders;
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: responseHeaders });
   try {
     if (request.method === "GET" && url.pathname === "/health") return json({ ok: true, service: "cloudy-api" }, 200, corsHeaders);
+    if (request.method === "POST" && url.pathname === "/integrations/discord/interactions") {
+      return handleDiscordInteraction(request, env, ctx, {
+        createDatabaseClient: dependencies.createDatabaseClient,
+        authenticateShortcutToken: dependencies.authenticateShortcutToken ?? defaultDependencies.authenticateShortcutToken!,
+        createIntegrationItem: dependencies.createIntegrationItem ?? defaultDependencies.createIntegrationItem!,
+        connectDiscord: dependencies.connectDiscord ?? defaultDependencies.connectDiscord!,
+        getDiscordConnection: dependencies.getDiscordConnection ?? defaultDependencies.getDiscordConnection!,
+        touchDiscordConnection: dependencies.touchDiscordConnection ?? defaultDependencies.touchDiscordConnection!,
+        disconnectDiscord: dependencies.disconnectDiscord ?? defaultDependencies.disconnectDiscord!
+      });
+    }
     if (request.method === "POST" && url.pathname === "/integrations/shortcut/items") {
       const db = dependencies.createDatabaseClient(env);
       const identity = await (dependencies.authenticateShortcutToken ?? defaultDependencies.authenticateShortcutToken!)(db, request.headers.get("X-Cloudy-Capture-Token"));

@@ -11,6 +11,7 @@
     "test": "vitest run",
     "api:dev": "wrangler dev --config wrangler.jsonc",
     "api:test": "vitest run --config apps/api/vitest.config.ts",
+    "discord:register": "node scripts/register-discord-commands.mjs",
     "db:migrate": "node scripts/apply-migrations.mjs"
   },
   "dependencies": {

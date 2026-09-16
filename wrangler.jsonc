@@ -9,7 +9,7 @@
     "ALLOWED_ORIGIN": "https://cloudy.isumi.com.br"
   },
   "secrets": {
-    "required": ["TURSO_URL", "TURSO_AUTH_TOKEN", "FIREBASE_PROJECT_ID", "OWNER_EMAIL"]
+    "required": ["TURSO_URL", "TURSO_AUTH_TOKEN", "FIREBASE_PROJECT_ID", "OWNER_EMAIL", "DISCORD_PUBLIC_KEY"]
   },
   "routes": [
     { "pattern": "cloudy-api.isumi.com.br", "custom_domain": true }
