@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { apiRequest } from "../../lib/api";
 import { IntegrationDialog } from "./IntegrationDialog";
 
@@ -8,6 +8,8 @@ vi.mock("../../lib/api", () => ({ apiBaseUrl: "https://cloudy-api.isumi.com.br",
 const mockedApiRequest = vi.mocked(apiRequest);
 
 describe("IntegrationDialog", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
   it("apresenta um loading contextual enquanto busca a configuração", () => {
     mockedApiRequest.mockReturnValueOnce(new Promise<never>(() => {}));
     render(<IntegrationDialog open onClose={vi.fn()} />);
@@ -43,6 +45,24 @@ describe("IntegrationDialog", () => {
     expect(screen.queryByText("cly_cap_abc", { exact: true })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Gerar novo token" })).toBeInTheDocument();
     expect(document.querySelector(".integration-steps li:last-child")?.textContent).toBe("Envie um JSON somente com url.");
+    expect(screen.queryByText("Ao gerar um novo token, atualize o Atalho e conecte o Discord novamente.")).not.toBeInTheDocument();
+  });
+
+  it("mostra e copia o link de instalação do Discord", async () => {
+    const installUrl = "https://discord.com/oauth2/authorize?client_id=cloudy";
+    vi.stubEnv("VITE_DISCORD_INSTALL_URL", installUrl);
+    mockedApiRequest.mockResolvedValueOnce({ configured: false, tokenPrefix: null, createdAt: null, lastUsedAt: null });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    render(<IntegrationDialog open onClose={vi.fn()} />);
+
+    expect(await screen.findByText("Use este link para baixar o app.")).toBeInTheDocument();
+    expect(screen.queryByText("O link de instalação do Discord ainda não foi configurado.")).not.toBeInTheDocument();
+    expect(document.querySelector<HTMLImageElement>('.integration-discord-icon img')?.getAttribute("src")).toBe("/discord-symbol.svg");
+    fireEvent.click(screen.getByRole("button", { name: "Copiar link do Discord" }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(installUrl));
+    expect(screen.getByRole("button", { name: "Link do Discord copiado" })).toBeInTheDocument();
   });
 
   it("fecha com Escape e pelo botão de fechar", async () => {

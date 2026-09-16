@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type AnimationEvent } from "react";
 import { createPortal } from "react-dom";
-import { Blocks, Check, Copy, ExternalLink, KeyRound, LoaderCircle, MessageCircle, X } from "lucide-react";
+import { Blocks, Check, Copy, KeyRound, LoaderCircle, X } from "lucide-react";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
 import { ApiError, apiBaseUrl, apiRequest } from "../../lib/api";
 
@@ -22,9 +22,9 @@ interface CreatedShortcutToken extends ShortcutTokenMetadata {
 }
 
 const INTEGRATION_DIALOG_EXIT_DURATION = 220;
-const discordInstallUrl = import.meta.env.VITE_DISCORD_INSTALL_URL || "";
 
 export function IntegrationDialog({ open, onClose, onClosingChange }: IntegrationDialogProps) {
+  const discordInstallUrl = import.meta.env.VITE_DISCORD_INSTALL_URL || "";
   const [metadata, setMetadata] = useState<ShortcutTokenMetadata | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -32,6 +32,7 @@ export function IntegrationDialog({ open, onClose, onClosingChange }: Integratio
   const [savingAction, setSavingAction] = useState<"generate" | "revoke" | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [isEndpointCopied, setIsEndpointCopied] = useState(false);
+  const [isDiscordLinkCopied, setIsDiscordLinkCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shouldRender, setShouldRender] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
@@ -88,6 +89,7 @@ export function IntegrationDialog({ open, onClose, onClosingChange }: Integratio
     setToken(null);
     setIsCopied(false);
     setIsEndpointCopied(false);
+    setIsDiscordLinkCopied(false);
     setError(null);
     setIsLoading(true);
     void apiRequest<ShortcutTokenMetadata>("/integrations/shortcut/token")
@@ -179,6 +181,16 @@ export function IntegrationDialog({ open, onClose, onClosingChange }: Integratio
     }
   };
 
+  const copyDiscordInstallUrl = async () => {
+    if (!discordInstallUrl) return;
+    try {
+      await navigator.clipboard.writeText(discordInstallUrl);
+      setIsDiscordLinkCopied(true);
+    } catch {
+      setError("Não conseguimos copiar o link do Discord agora.");
+    }
+  };
+
   if (!shouldRender) return null;
 
   const handleExitAnimationEnd = (event: AnimationEvent<HTMLElement>) => {
@@ -248,54 +260,50 @@ export function IntegrationDialog({ open, onClose, onClosingChange }: Integratio
               </div>
             </div>
             {error && <p className="integration-message integration-message--error" role="alert">{error}</p>}
-            <div className="integration-card integration-config-card">
-              <div className="integration-card-heading">
-                <div className="integration-card-title">
-                  <picture className="integration-shortcuts-icon">
-                    <source srcSet="/atalhos-icon.webp" type="image/webp" />
-                    <img src="/atalhos-icon.png" alt="" width="36" height="36" decoding="async" aria-hidden="true" />
-                  </picture>
-                  <div>
-                    <strong>Configuração do Atalho</strong>
-                    <p>Use este endpoint no app Atalhos.</p>
+            <div className="integration-services">
+              <div className="integration-card integration-config-card">
+                <div className="integration-card-heading">
+                  <div className="integration-card-title">
+                    <picture className="integration-shortcuts-icon">
+                      <source srcSet="/atalhos-icon.webp" type="image/webp" />
+                      <img src="/atalhos-icon.png" alt="" width="36" height="36" decoding="async" aria-hidden="true" />
+                    </picture>
+                    <div>
+                      <strong>Configuração do Atalho</strong>
+                      <p>Use este endpoint no app Atalhos.</p>
+                    </div>
                   </div>
                 </div>
+                <div className="integration-endpoint">
+                  <code title={shortcutEndpoint}>{shortcutEndpoint}</code>
+                  <button type="button" onClick={() => void copyEndpoint()} aria-label={isEndpointCopied ? "Endpoint copiado" : "Copiar endpoint"}>{isEndpointCopied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}</button>
+                </div>
+                <ol className="integration-steps">
+                  <li>Use “Obter conteúdo de URL” no app Atalhos.</li>
+                  <li>Escolha POST e envie o token no cabeçalho <code>X-Cloudy-Capture-Token</code>.</li>
+                  <li>Envie um JSON somente com <code>url</code>.</li>
+                </ol>
               </div>
-              <div className="integration-endpoint">
-                <code title={shortcutEndpoint}>{shortcutEndpoint}</code>
-                <button type="button" onClick={() => void copyEndpoint()} aria-label={isEndpointCopied ? "Endpoint copiado" : "Copiar endpoint"}>{isEndpointCopied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}</button>
-              </div>
-              <ol className="integration-steps">
-                <li>Use “Obter conteúdo de URL” no app Atalhos.</li>
-                <li>Escolha POST e envie o token no cabeçalho <code>X-Cloudy-Capture-Token</code>.</li>
-                <li>Envie um JSON somente com <code>url</code>.</li>
-              </ol>
-            </div>
-            <div className="integration-card integration-discord-card">
-              <div className="integration-card-heading">
-                <div className="integration-card-title">
-                  <MessageCircle aria-hidden="true" />
-                  <div>
-                    <strong>Bot do Discord</strong>
-                    <p>Conecte sua conta e salve links por comando ou pelo menu de uma mensagem.</p>
+              <div className="integration-card integration-discord-card">
+                <div className="integration-card-heading">
+                  <div className="integration-card-title">
+                    <span className="integration-discord-icon" aria-hidden="true">
+                      <img src="/discord-symbol.svg" alt="" width="36" height="36" decoding="async" />
+                    </span>
+                    <div>
+                      <strong>Bot do Discord</strong>
+                      <p>Use este link para baixar o app.</p>
+                    </div>
                   </div>
                 </div>
+                {discordInstallUrl && (
+                  <div className="integration-endpoint integration-discord-endpoint">
+                    <a href={discordInstallUrl} target="_blank" rel="noreferrer" title={discordInstallUrl}>{discordInstallUrl}</a>
+                    <button type="button" onClick={() => void copyDiscordInstallUrl()} aria-label={isDiscordLinkCopied ? "Link do Discord copiado" : "Copiar link do Discord"}>{isDiscordLinkCopied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}</button>
+                  </div>
+                )}
               </div>
-              {discordInstallUrl ? (
-                <a className="button-action integration-discord-link" href={discordInstallUrl} target="_blank" rel="noreferrer">
-                  <ExternalLink aria-hidden="true" />
-                  <span>Adicionar Cloudy ao Discord</span>
-                </a>
-              ) : (
-                <p className="integration-message">O link de instalação do Discord ainda não foi configurado.</p>
-              )}
-              <ol className="integration-steps">
-                <li>Abra uma DM com o Cloudy depois de instalar o app.</li>
-                <li>Use <code>/cloudy conectar</code> e informe este token.</li>
-                <li>Salve com <code>/cloudy salvar</code> ou “Salvar no Cloudy” em uma mensagem.</li>
-              </ol>
             </div>
-            <p className="integration-message integration-message--warning">Ao gerar um novo token, atualize o Atalho e conecte o Discord novamente.</p>
           </>
         )}
       </section>
