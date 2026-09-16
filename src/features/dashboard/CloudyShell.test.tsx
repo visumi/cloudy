@@ -13,6 +13,7 @@ vi.mock("../../hooks/use-auth", () => ({
   })
 }));
 vi.mock("./CloudMascot", () => ({ CloudMascot: () => <div aria-hidden="true" /> }));
+vi.mock("./use-mascot-variant", () => ({ useMascotVariant: () => "default" }));
 vi.mock("../items/ItemGraph", () => ({
   FallbackImage: ({ alt, className }: { alt: string; className: string }) => <img alt={alt} className={className} />,
   ItemGraph: ({ children, categories, items, onCategorySelect, onItemSelect }: { children: ReactNode; categories?: Array<{ id: string; name: string; itemCount: number; recentItems: Array<{ name: string }> }>; items?: Array<{ id: string; name: string; url?: string; imageUrl?: null; faviconUrl?: null; observation?: null; category?: { id: string; name: string; color: string } | null; createdAt?: string; updatedAt?: string }>; onCategorySelect?: (id: string) => void; onItemSelect?: (item: { id: string; name: string; url: string; imageUrl: null; faviconUrl: null; observation: null; category: { id: string; name: string; color: string } | null; createdAt: string; updatedAt: string }) => void }) => (

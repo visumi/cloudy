@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { CloudyShell } from "./features/dashboard/CloudyShell";
 import { LoginPage } from "./features/login/LoginPage";
 import { useAuth } from "./hooks/use-auth";
@@ -24,10 +24,16 @@ function useBootLoading(ready: boolean) {
 
 export function App() {
   const { ready, user, profileLoading, profile, authError } = useAuth();
-  const isBooting = !ready || profileLoading;
+  const [dashboardReady, setDashboardReady] = useState(false);
+  const shouldRenderDashboard = Boolean(user && profile?.allowed && !authError);
+  const isBooting = !ready || profileLoading || (shouldRenderDashboard && !dashboardReady);
   useBootLoading(!isBooting);
 
-  if (isBooting) return null;
+  useEffect(() => {
+    if (!shouldRenderDashboard) setDashboardReady(false);
+  }, [shouldRenderDashboard]);
+
+  if (!ready || profileLoading) return null;
   if (!user || !profile?.allowed || authError) return <LoginPage />;
-  return <CloudyShell />;
+  return <CloudyShell onReadyChange={setDashboardReady} />;
 }

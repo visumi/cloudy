@@ -2,6 +2,7 @@ import { authenticate, createAccessGrant, listAccessGrants, requireOwner, resolv
 import { bulkItemAction, createCategory, createIntegrationItem, createItem, deleteCategory, deleteItem, listCategories, listCategoryItems, listItems, previewItem, updateCategory, updateItem } from "./items";
 import { authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken } from "./integration-tokens";
 import { createShare, getShare, importShare } from "./shares";
+import { fetchMascotWeather, parseMascotWeatherCoordinates } from "./weather";
 import { createDatabaseClient, type AuthUser, type Env, type HttpError } from "./shared";
 import { HttpError as CloudyHttpError } from "./shared";
 
@@ -33,8 +34,9 @@ export interface RequestDependencies {
   listAccessGrants?: typeof listAccessGrants;
   createAccessGrant?: typeof createAccessGrant;
   updateAccessGrant?: typeof updateAccessGrant;
+  fetchMascotWeather?: typeof fetchMascotWeather;
 }
-const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, listCategoryItems, createItem, updateItem, deleteItem, bulkItemAction, previewItem, listCategories, createCategory, updateCategory, deleteCategory, createIntegrationItem, authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken, createShare, getShare, importShare, listAccessGrants, createAccessGrant, updateAccessGrant };
+const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, listCategoryItems, createItem, updateItem, deleteItem, bulkItemAction, previewItem, listCategories, createCategory, updateCategory, deleteCategory, createIntegrationItem, authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken, createShare, getShare, importShare, listAccessGrants, createAccessGrant, updateAccessGrant, fetchMascotWeather };
 
 export default { fetch: (request: Request, env: Env) => handleRequest(request, env) } satisfies ExportedHandler<Env>;
 
@@ -52,6 +54,11 @@ export async function handleRequest(request: Request, env: Env, dependencies: Re
       return json(result, result.duplicate ? 200 : 201, corsHeaders);
     }
     const identity = await dependencies.authenticate(request, env);
+    if (request.method === "POST" && url.pathname === "/mascot-weather") {
+      const coordinates = parseMascotWeatherCoordinates(await readRequestJson(request));
+      const result = await (dependencies.fetchMascotWeather ?? defaultDependencies.fetchMascotWeather!)(coordinates);
+      return json(result, 200, noStoreHeaders(corsHeaders));
+    }
     const db = dependencies.createDatabaseClient(env);
     const user = await dependencies.resolveAuthenticatedUser(db, identity, env);
     if (request.method === "GET" && url.pathname === "/me") {

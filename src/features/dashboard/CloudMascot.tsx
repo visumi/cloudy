@@ -11,6 +11,7 @@ import {
   MeshBasicMaterial,
   MeshPhysicalMaterial,
   PerspectiveCamera,
+  PointLight,
   Scene,
   Shape,
   SphereGeometry,
@@ -21,7 +22,7 @@ import {
   CatmullRomCurve3
 } from "three";
 
-type CloudMascotVariant = "default" | "rainy";
+type CloudMascotVariant = "default" | "rainy" | "night";
 
 interface CloudMascotProps {
   variant?: CloudMascotVariant;
@@ -51,16 +52,24 @@ function createCloudGeometry() {
   return geometry;
 }
 
-function createMouth(material: MeshBasicMaterial, expression: "happy" | "sad") {
-  const points = expression === "sad"
+function createMouth(material: MeshBasicMaterial, expression: "happy" | "sad" | "sleepy") {
+  const points = expression === "sleepy"
     ? [
+        new Vector3(-0.17, -0.06, 0),
+        new Vector3(-0.085, -0.025, 0),
+        new Vector3(0, -0.06, 0),
+        new Vector3(0.085, -0.095, 0),
+        new Vector3(0.17, -0.06, 0)
+      ]
+    : expression === "sad"
+      ? [
         new Vector3(-0.16, -0.1, 0),
         new Vector3(-0.1, -0.02, 0),
         new Vector3(0, 0.025, 0),
         new Vector3(0.1, -0.02, 0),
         new Vector3(0.16, -0.1, 0)
       ]
-    : [
+      : [
         new Vector3(-0.16, 0.01, 0),
         new Vector3(-0.1, -0.08, 0),
         new Vector3(0, -0.12, 0),
@@ -149,21 +158,75 @@ export function CloudMascot({ variant = "default" }: CloudMascotProps) {
     mascot.position.y = -0.12;
     scene.add(mascot);
 
+    const moonGeometry = variant === "night" ? new SphereGeometry(0.46, 48, 32) : null;
+    const moonMaterial = variant === "night"
+      ? new MeshPhysicalMaterial({
+          color: "#f8e8a6",
+          roughness: 0.68,
+          metalness: 0,
+          clearcoat: 0.18,
+          clearcoatRoughness: 0.5,
+          emissive: "#c99d3d",
+          emissiveIntensity: 0.13
+        })
+      : null;
+    const moonCraterGeometry = variant === "night" ? new CircleGeometry(1, 24) : null;
+    const moonCraterMaterial = variant === "night"
+      ? new MeshBasicMaterial({ color: "#b68f35", transparent: true, opacity: 0.32 })
+      : null;
+    if (moonGeometry && moonMaterial) {
+      const moon = new Mesh(moonGeometry, moonMaterial);
+      moon.position.set(0.68, 0.68, -0.34);
+      mascot.add(moon);
+
+      if (moonCraterGeometry && moonCraterMaterial) {
+        for (const crater of [
+          { x: 0.73, y: 1.01, radius: 0.052 },
+          { x: 0.96, y: 0.83, radius: 0.042 }
+        ]) {
+          const craterMesh = new Mesh(moonCraterGeometry, moonCraterMaterial);
+          craterMesh.position.set(crater.x, crater.y, 0.13);
+          craterMesh.scale.setScalar(crater.radius);
+          mascot.add(craterMesh);
+        }
+      }
+
+      const moonLight = new PointLight("#ffe9a8", 0.48, 3.4, 2);
+      moonLight.position.set(0.76, 0.84, -0.08);
+      mascot.add(moonLight);
+    }
+
     const cloudGeometry = createCloudGeometry();
     const cloud = new Mesh(cloudGeometry, cloudMaterial);
     cloud.scale.set(0.82, 0.76, 0.82);
     mascot.add(cloud);
 
-    const eyeGeometry = new CircleGeometry(0.105, 32);
+    const eyeRadius = 0.105;
+    const sleepyEyeTilt = 0.16;
+    const eyeGeometry = variant === "night"
+      ? new CircleGeometry(eyeRadius, 32, Math.PI, Math.PI).translate(0, eyeRadius, 0)
+      : new CircleGeometry(eyeRadius, 32);
     const eyeLeft = new Mesh(eyeGeometry, faceMaterial);
     const eyeRight = new Mesh(eyeGeometry, faceMaterial);
-    eyeLeft.position.set(-0.28, 0.08, 0.48);
-    eyeRight.position.set(0.28, 0.08, 0.48);
+    if (variant === "night") {
+      const pivotOffsetX = Math.sin(sleepyEyeTilt) * eyeRadius;
+      const pivotOffsetY = Math.cos(sleepyEyeTilt) * eyeRadius;
+      eyeLeft.position.set(-0.28 + pivotOffsetX, 0.08 - pivotOffsetY, 0.48);
+      eyeRight.position.set(0.28 - pivotOffsetX, 0.08 - pivotOffsetY, 0.48);
+      eyeLeft.rotation.z = sleepyEyeTilt;
+      eyeRight.rotation.z = -sleepyEyeTilt;
+    } else {
+      eyeLeft.position.set(-0.28, 0.08, 0.48);
+      eyeRight.position.set(0.28, 0.08, 0.48);
+    }
     eyeLeft.renderOrder = 2;
     eyeRight.renderOrder = 2;
     mascot.add(eyeLeft, eyeRight);
 
-    const mouth = createMouth(faceMaterial, variant === "rainy" ? "sad" : "happy");
+    const mouth = createMouth(
+      faceMaterial,
+      variant === "night" ? "sleepy" : variant === "rainy" ? "sad" : "happy"
+    );
     mascot.add(mouth.group);
 
     const raindropGeometry = variant === "rainy" ? createRaindropGeometry() : null;
@@ -263,6 +326,10 @@ export function CloudMascot({ variant = "default" }: CloudMascotProps) {
       faceMaterial.dispose();
       raindrops.forEach(({ material }) => material.dispose());
       raindropGeometry?.dispose();
+      moonGeometry?.dispose();
+      moonMaterial?.dispose();
+      moonCraterGeometry?.dispose();
+      moonCraterMaterial?.dispose();
       eyeGeometry.dispose();
       cloudGeometry.dispose();
       mouth.tubeGeometry.dispose();
@@ -271,5 +338,11 @@ export function CloudMascot({ variant = "default" }: CloudMascotProps) {
     };
   }, [variant]);
 
-  return <div ref={mountRef} className={`cloud-mascot cloud-mascot--${variant} cloud-mascot--ready`} role="img" aria-label={variant === "rainy" ? "Nuvem 3D chuvosa do Cloudy" : "Nuvem 3D do Cloudy"} />;
+  const label = variant === "rainy"
+    ? "Nuvem 3D chuvosa do Cloudy"
+    : variant === "night"
+      ? "Nuvem 3D sonolenta do Cloudy com a lua ao fundo"
+      : "Nuvem 3D do Cloudy";
+
+  return <div ref={mountRef} className={`cloud-mascot cloud-mascot--${variant} cloud-mascot--ready`} role="img" aria-label={label} />;
 }

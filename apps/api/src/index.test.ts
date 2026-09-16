@@ -40,6 +40,38 @@ describe("API base", () => {
     await expect(response.json()).resolves.toEqual({ error: "invalid_token" });
   });
 
+  it("protege o clima, valida coordenadas e não devolve dados de localização", async () => {
+    const fetchMascotWeather = vi.fn(async (coordinates: { latitude: number; longitude: number }) => {
+      expect(coordinates).toEqual({ latitude: -23.56, longitude: -46.63 });
+      return { isRaining: true };
+    });
+    const dependencies: RequestDependencies = { authenticate: vi.fn(async () => identity), createDatabaseClient: vi.fn(() => ({} as never)), resolveAuthenticatedUser: vi.fn(async () => profile), upsertUser: vi.fn(), listItems: vi.fn(), createItem: vi.fn(), previewItem: vi.fn(), fetchMascotWeather };
+    const response = await handleRequest(new Request("https://cloudy-api.isumi.com.br/mascot-weather", { method: "POST", headers: { Authorization: "Bearer test", "Content-Type": "application/json" }, body: JSON.stringify({ latitude: -23.556, longitude: -46.633 }) }), env, dependencies);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toEqual({ isRaining: true });
+    expect(dependencies.createDatabaseClient).not.toHaveBeenCalled();
+
+    const invalidResponse = await handleRequest(new Request("https://cloudy-api.isumi.com.br/mascot-weather", { method: "POST", headers: { Authorization: "Bearer test", "Content-Type": "application/json" }, body: JSON.stringify({ latitude: 200, longitude: 0 }) }), env, dependencies);
+    expect(invalidResponse.status).toBe(400);
+    expect(fetchMascotWeather).toHaveBeenCalledTimes(1);
+  });
+
+  it("exige autenticação para consultar o clima", async () => {
+    const fetchMascotWeather = vi.fn();
+    const dependencies: RequestDependencies = { authenticate: vi.fn(async () => { throw new HttpError(401, "missing_token"); }), createDatabaseClient: vi.fn(() => ({} as never)), resolveAuthenticatedUser: vi.fn(), upsertUser: vi.fn(), listItems: vi.fn(), createItem: vi.fn(), previewItem: vi.fn(), fetchMascotWeather };
+    const response = await handleRequest(new Request("https://cloudy-api.isumi.com.br/mascot-weather", { method: "POST", body: "{}" }), env, dependencies);
+    expect(response.status).toBe(401);
+    expect(fetchMascotWeather).not.toHaveBeenCalled();
+  });
+
+  it("não expõe detalhes quando o provedor de clima falha", async () => {
+    const dependencies: RequestDependencies = { authenticate: vi.fn(async () => identity), createDatabaseClient: vi.fn(() => { throw new Error("Turso should not be reached"); }), resolveAuthenticatedUser: vi.fn(), upsertUser: vi.fn(), listItems: vi.fn(), createItem: vi.fn(), previewItem: vi.fn(), fetchMascotWeather: vi.fn(async () => { throw new HttpError(502, "weather_unavailable"); }) };
+    const response = await handleRequest(new Request("https://cloudy-api.isumi.com.br/mascot-weather", { method: "POST", headers: { Authorization: "Bearer test", "Content-Type": "application/json" }, body: JSON.stringify({ latitude: 0, longitude: 0 }) }), env, dependencies);
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({ error: "weather_unavailable" });
+  });
+
   it("permite que o owner liste acessos sem cache", async () => {
     const listAccessGrants = vi.fn(async () => [{ email: "owner@example.com", role: "owner", active: true }]);
     const dependencies: RequestDependencies = { authenticate: vi.fn(async () => identity), createDatabaseClient: vi.fn(() => ({} as never)), resolveAuthenticatedUser: vi.fn(async () => profile), upsertUser: vi.fn(), listItems: vi.fn(), createItem: vi.fn(), previewItem: vi.fn(), listAccessGrants };

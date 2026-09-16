@@ -14,6 +14,7 @@ import { CommandPalette } from "../search/CommandPalette";
 import { ItemDetail } from "../items/ItemGraph";
 import { BulkActionDialog } from "../items/BulkActionDialog";
 import { EMPTY_CATEGORY_COLOR } from "../items/category-colors";
+import { useMascotVariant } from "./use-mascot-variant";
 import type { BulkItemActionPayload, BulkItemActionResponse, CategoriesResponse, CategoryRecentItem, CategorySummary, CloudyItem, ItemsResponse } from "../../types/api";
 
 const CloudMascot = lazy(() => import("./CloudMascot").then(({ CloudMascot: Mascot }) => ({ default: Mascot })));
@@ -34,8 +35,13 @@ interface PendingItemAction {
   item: CloudyItem;
 }
 
-export function CloudyShell() {
+interface CloudyShellProps {
+  onReadyChange?: (ready: boolean) => void;
+}
+
+export function CloudyShell({ onReadyChange }: CloudyShellProps) {
   const { profile, signOutUser, user } = useAuth();
+  const mascotVariant = useMascotVariant();
   const [isItemDialogOpen, setIsItemDialogOpen] = useState(false);
   const [isItemDialogClosing, setIsItemDialogClosing] = useState(false);
   const [editingItem, setEditingItem] = useState<CloudyItem | null>(null);
@@ -88,6 +94,10 @@ export function CloudyShell() {
   const managedCategories = useMemo(() => categories.filter((category) => !category.isVirtual && !category.isSystem), [categories]);
   const visibleItems = selectedCategoryId ? categoryItems[selectedCategoryId] ?? [] : [];
   const incomingShareParam = useRef<string | null>(new URLSearchParams(window.location.search).get("share"));
+
+  useEffect(() => {
+    onReadyChange?.(!categoriesLoading && mascotVariant !== null);
+  }, [categoriesLoading, mascotVariant, onReadyChange]);
 
   useEffect(() => {
     if (categoriesLoading || !incomingShareParam.current) return;
@@ -428,7 +438,7 @@ export function CloudyShell() {
           activeItemId={detailItem?.id}
         >
           <Suspense fallback={<div className="cloud-mascot" aria-hidden="true" />}>
-            <CloudMascot />
+            {mascotVariant ? <CloudMascot variant={mascotVariant} /> : <div className="cloud-mascot" aria-hidden="true" />}
           </Suspense>
         </ItemGraph>
       </section>
