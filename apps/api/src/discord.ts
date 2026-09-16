@@ -11,13 +11,10 @@ const DISCORD_MESSAGE_COMMAND = 3;
 const DISCORD_CHAT_INPUT_COMMAND = 1;
 const DISCORD_DEFERRED_RESPONSE = 5;
 const DISCORD_EPHEMERAL = 1 << 6;
-const DISCORD_COMPONENTS_V2 = 1 << 15;
 const DISCORD_BOT_DM_CONTEXT = 1;
 const DISCORD_COMPONENT_ACTION_ROW = 1;
 const DISCORD_COMPONENT_BUTTON = 2;
 const DISCORD_BUTTON_LINK = 5;
-const DISCORD_COMPONENT_TEXT_DISPLAY = 10;
-const DISCORD_COMPONENT_CONTAINER = 17;
 const MAX_SIGNATURE_AGE_SECONDS = 5 * 60;
 const MAX_MESSAGE_URLS = 5;
 const URL_PATTERN = /https?:\/\/[^\s<>()]+/gi;
@@ -26,26 +23,19 @@ const CLOUDY_APP_URL = "https://cloudy.isumi.com.br";
 interface DiscordUser { id: string; }
 interface DiscordMessage { content?: string; }
 interface DiscordOption { name: string; type: number; value?: string; options?: DiscordOption[]; }
-interface DiscordTextDisplayComponent { type: typeof DISCORD_COMPONENT_TEXT_DISPLAY; content: string; }
 interface DiscordLinkButtonComponent {
   type: typeof DISCORD_COMPONENT_BUTTON;
   style: typeof DISCORD_BUTTON_LINK;
   label: string;
-  emoji: { name: string };
   url: string;
 }
 interface DiscordActionRowComponent {
   type: typeof DISCORD_COMPONENT_ACTION_ROW;
   components: DiscordLinkButtonComponent[];
 }
-interface DiscordContainerComponent {
-  type: typeof DISCORD_COMPONENT_CONTAINER;
-  accent_color: number;
-  components: Array<DiscordTextDisplayComponent | DiscordActionRowComponent>;
-}
 interface DiscordComponentResponse {
-  components: DiscordContainerComponent[];
-  flags: typeof DISCORD_COMPONENTS_V2;
+  content: string;
+  components: DiscordActionRowComponent[];
 }
 type DiscordResponseContent = string | DiscordComponentResponse;
 interface DiscordInteraction {
@@ -200,7 +190,7 @@ async function saveMessageLinks(interaction: DiscordInteraction, discordUserId: 
   if (duplicate) parts.push(`${duplicate} já ${duplicate === 1 ? "existia" : "existiam"}`);
   if (failed) parts.push(`${failed} com erro`);
   if (remaining) parts.push(`${remaining} não processado${remaining === 1 ? "" : "s"} — divida a mensagem para salvar o restante`);
-  await editOriginalResponse(interaction, saved ? formatSavedLinksCard(saved, parts.slice(1)) : `🔗 ${parts.join(" · ")}.`);
+  await editOriginalResponse(interaction, saved ? formatSavedLinksResponse(saved, parts.slice(1)) : `🔗 ${parts.join(" · ")}.`);
 }
 
 async function requireConnection(db: Client, discordUserId: string, dependencies: DiscordDependencies): Promise<DiscordConnection> {
@@ -238,23 +228,18 @@ export function extractDiscordUrls(content: string): string[] {
 }
 
 function formatSaveResult(result: IntegrationItemResult): DiscordResponseContent {
-  return result.duplicate ? "♻️ Esse link já estava salvo no Cloudy." : formatSavedLinksCard(1);
+  return result.duplicate ? "♻️ Esse link já estava salvo no Cloudy." : formatSavedLinksResponse(1);
 }
 
-function formatSavedLinksCard(saved: number, notices: string[] = []): DiscordComponentResponse {
+function formatSavedLinksResponse(saved: number, notices: string[] = []): DiscordComponentResponse {
   const title = saved === 1 ? "Link salvo" : `${saved} links salvos`;
-  const components: Array<DiscordTextDisplayComponent | DiscordActionRowComponent> = [
-    { type: DISCORD_COMPONENT_TEXT_DISPLAY, content: `# ✨ ${title}` },
-    { type: DISCORD_COMPONENT_TEXT_DISPLAY, content: "Guardado em Integrações." }
-  ];
-  if (notices.length) components.push({ type: DISCORD_COMPONENT_TEXT_DISPLAY, content: `-# ${notices.join(" · ")}.` });
-  components.push({
-    type: DISCORD_COMPONENT_ACTION_ROW,
-    components: [{ type: DISCORD_COMPONENT_BUTTON, style: DISCORD_BUTTON_LINK, label: "Abrir no Cloudy", emoji: { name: "☁️" }, url: CLOUDY_APP_URL }]
-  });
+  const content = [`✨ ${title}`, ...(notices.length ? [`⚠️ ${notices.join(" · ")}.`] : [])].join("\n");
   return {
-    flags: DISCORD_COMPONENTS_V2,
-    components: [{ type: DISCORD_COMPONENT_CONTAINER, accent_color: 0x38BDF8, components }]
+    content,
+    components: [{
+    type: DISCORD_COMPONENT_ACTION_ROW,
+      components: [{ type: DISCORD_COMPONENT_BUTTON, style: DISCORD_BUTTON_LINK, label: "Abrir no Cloudy", url: CLOUDY_APP_URL }]
+    }]
   };
 }
 

@@ -64,7 +64,7 @@ describe("Discord interactions", () => {
     });
     await scheduled[0];
     expect(editResponse).toHaveBeenCalledWith(expect.stringContaining("/messages/@original?with_components=true"), expect.anything());
-    expect(readEditBody(editResponse)).toEqual(savedCard("# ✨ Link salvo"));
+    expect(readEditBody(editResponse)).toEqual(savedResponse("✨ Link salvo"));
     editResponse.mockRestore();
   });
 
@@ -91,7 +91,7 @@ describe("Discord interactions", () => {
     });
     expect(response.status).toBe(200);
     await scheduled[0];
-    expect(readEditBody(editResponse)).toEqual(savedCard("# ✨ 2 links salvos"));
+    expect(readEditBody(editResponse)).toEqual(savedResponse("✨ 2 links salvos"));
     editResponse.mockRestore();
   });
 
@@ -121,7 +121,7 @@ describe("Discord interactions", () => {
       touchDiscordConnection: vi.fn(async () => undefined)
     });
     await scheduled[0];
-    expect(readEditBody(editResponse)).toEqual(savedCard("# ✨ Link salvo", "-# 1 já existia · 1 com erro."));
+    expect(readEditBody(editResponse)).toEqual(savedResponse("✨ Link salvo", "1 já existia · 1 com erro."));
     editResponse.mockRestore();
   });
 
@@ -153,21 +153,19 @@ function connectedAccount() {
 }
 
 function readEditBody(fetchMock: { mock: { calls: unknown[][] } }): unknown {
-  const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+  const request = fetchMock.mock.calls.at(-1)?.[1] as RequestInit;
   return JSON.parse(request.body as string);
 }
 
-function savedCard(title: string, notice?: string) {
-  const components = [
-    { type: 10, content: title },
-    { type: 10, content: "Guardado em Integrações." }
-  ];
-  if (notice) components.push({ type: 10, content: notice });
-  components.push({
-    type: 1,
-    components: [{ type: 2, style: 5, label: "Abrir no Cloudy", emoji: { name: "☁️" }, url: "https://cloudy.isumi.com.br" }]
-  });
-  return { flags: 32768, components: [{ type: 17, accent_color: 3718648, components }], allowed_mentions: { parse: [] } };
+function savedResponse(content: string, notice?: string) {
+  return {
+    content: notice ? `${content}\n⚠️ ${notice}` : content,
+    components: [{
+      type: 1,
+      components: [{ type: 2, style: 5, label: "Abrir no Cloudy", url: "https://cloudy.isumi.com.br" }]
+    }],
+    allowed_mentions: { parse: [] }
+  };
 }
 
 async function signedPayload(payload: unknown): Promise<{ body: string; headers: Headers }> {
