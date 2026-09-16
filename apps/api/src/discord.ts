@@ -11,14 +11,43 @@ const DISCORD_MESSAGE_COMMAND = 3;
 const DISCORD_CHAT_INPUT_COMMAND = 1;
 const DISCORD_DEFERRED_RESPONSE = 5;
 const DISCORD_EPHEMERAL = 1 << 6;
+const DISCORD_COMPONENTS_V2 = 1 << 15;
 const DISCORD_BOT_DM_CONTEXT = 1;
+const DISCORD_COMPONENT_ACTION_ROW = 1;
+const DISCORD_COMPONENT_BUTTON = 2;
+const DISCORD_BUTTON_LINK = 5;
+const DISCORD_COMPONENT_TEXT_DISPLAY = 10;
+const DISCORD_COMPONENT_CONTAINER = 17;
 const MAX_SIGNATURE_AGE_SECONDS = 5 * 60;
 const MAX_MESSAGE_URLS = 5;
 const URL_PATTERN = /https?:\/\/[^\s<>()]+/gi;
+const CLOUDY_APP_URL = "https://cloudy.isumi.com.br";
 
 interface DiscordUser { id: string; }
 interface DiscordMessage { content?: string; }
 interface DiscordOption { name: string; type: number; value?: string; options?: DiscordOption[]; }
+interface DiscordTextDisplayComponent { type: typeof DISCORD_COMPONENT_TEXT_DISPLAY; content: string; }
+interface DiscordLinkButtonComponent {
+  type: typeof DISCORD_COMPONENT_BUTTON;
+  style: typeof DISCORD_BUTTON_LINK;
+  label: string;
+  emoji: { name: string };
+  url: string;
+}
+interface DiscordActionRowComponent {
+  type: typeof DISCORD_COMPONENT_ACTION_ROW;
+  components: DiscordLinkButtonComponent[];
+}
+interface DiscordContainerComponent {
+  type: typeof DISCORD_COMPONENT_CONTAINER;
+  accent_color: number;
+  components: Array<DiscordTextDisplayComponent | DiscordActionRowComponent>;
+}
+interface DiscordComponentResponse {
+  components: DiscordContainerComponent[];
+  flags: typeof DISCORD_COMPONENTS_V2;
+}
+type DiscordResponseContent = string | DiscordComponentResponse;
 interface DiscordInteraction {
   type: number;
   application_id: string;
@@ -103,37 +132,37 @@ async function runDiscordCommand(interaction: DiscordInteraction, env: Env, depe
     return;
   }
   if (command.type !== DISCORD_CHAT_INPUT_COMMAND || command.name !== "cloudy") {
-    await editOriginalResponse(interaction, "Comando não reconhecido.");
+    await editOriginalResponse(interaction, "🤔 Comando não reconhecido.");
     return;
   }
 
   const subcommand = readSubcommand(command.options);
   if (!subcommand) {
-    await editOriginalResponse(interaction, "Escolha uma ação: conectar, salvar, status ou desconectar.");
+    await editOriginalResponse(interaction, "🧭 Escolha uma ação: conectar, salvar, status ou desconectar.");
     return;
   }
 
   if (subcommand.name === "conectar") {
     if (interaction.context !== DISCORD_BOT_DM_CONTEXT) {
-      await editOriginalResponse(interaction, "Por segurança, informe o token em uma DM com o Cloudy.");
+      await editOriginalResponse(interaction, "🔒 Por segurança, informe o token em uma DM com o Cloudy.");
       return;
     }
     const token = readOptionValue(subcommand.options, "token");
     const identity = await dependencies.authenticateShortcutToken(db, token);
     await dependencies.connectDiscord(db, discordUserId, identity.userId, identity.id);
-    await editOriginalResponse(interaction, "Discord conectado ao Cloudy. Agora você já pode usar /cloudy salvar.");
+    await editOriginalResponse(interaction, "✨ Discord conectado ao Cloudy. Agora você já pode usar /cloudy salvar.");
     return;
   }
 
   if (subcommand.name === "status") {
     const connection = await dependencies.getDiscordConnection(db, discordUserId);
-    await editOriginalResponse(interaction, connection ? "Sua conta Discord está conectada ao Cloudy." : "Sua conta Discord não está conectada. Use /cloudy conectar em uma DM.");
+    await editOriginalResponse(interaction, connection ? "✅ Sua conta Discord está conectada ao Cloudy." : "🔌 Sua conta Discord não está conectada. Use /cloudy conectar em uma DM.");
     return;
   }
 
   if (subcommand.name === "desconectar") {
     await dependencies.disconnectDiscord(db, discordUserId);
-    await editOriginalResponse(interaction, "Discord desconectado. Seu token e seus Atalhos continuam ativos.");
+    await editOriginalResponse(interaction, "👋 Discord desconectado. Seu token e seus Atalhos continuam ativos.");
     return;
   }
 
@@ -147,7 +176,7 @@ async function runDiscordCommand(interaction: DiscordInteraction, env: Env, depe
     return;
   }
 
-  await editOriginalResponse(interaction, "Escolha uma ação válida: conectar, salvar, status ou desconectar.");
+  await editOriginalResponse(interaction, "🧭 Escolha uma ação válida: conectar, salvar, status ou desconectar.");
 }
 
 async function saveMessageLinks(interaction: DiscordInteraction, discordUserId: string, db: Client, dependencies: DiscordDependencies): Promise<void> {
@@ -156,7 +185,7 @@ async function saveMessageLinks(interaction: DiscordInteraction, discordUserId: 
   const content = targetId ? interaction.data?.resolved?.messages?.[targetId]?.content ?? "" : "";
   const uniqueUrls = [...new Set(extractDiscordUrls(content))];
   if (!uniqueUrls.length) {
-    await editOriginalResponse(interaction, "Não encontrei nenhum link HTTP ou HTTPS nessa mensagem.");
+    await editOriginalResponse(interaction, "🔎 Não encontrei nenhum link HTTP ou HTTPS nessa mensagem.");
     return;
   }
 
@@ -167,10 +196,11 @@ async function saveMessageLinks(interaction: DiscordInteraction, discordUserId: 
   const duplicate = results.filter((result): result is PromiseFulfilledResult<IntegrationItemResult> => result.status === "fulfilled" && result.value.duplicate).length;
   const failed = results.filter((result) => result.status === "rejected").length;
   const remaining = uniqueUrls.length - urls.length;
-  const parts = [`${saved} ${saved === 1 ? "link salvo" : "links salvos"}`, `${duplicate} já ${duplicate === 1 ? "existia" : "existiam"}`];
+  const parts = [`${saved} ${saved === 1 ? "link salvo" : "links salvos"}`];
+  if (duplicate) parts.push(`${duplicate} já ${duplicate === 1 ? "existia" : "existiam"}`);
   if (failed) parts.push(`${failed} com erro`);
   if (remaining) parts.push(`${remaining} não processado${remaining === 1 ? "" : "s"} — divida a mensagem para salvar o restante`);
-  await editOriginalResponse(interaction, `${parts.join(" · ")}.`);
+  await editOriginalResponse(interaction, saved ? formatSavedLinksCard(saved, parts.slice(1)) : `🔗 ${parts.join(" · ")}.`);
 }
 
 async function requireConnection(db: Client, discordUserId: string, dependencies: DiscordDependencies): Promise<DiscordConnection> {
@@ -207,25 +237,46 @@ export function extractDiscordUrls(content: string): string[] {
   return [...new Set(urls)];
 }
 
-function formatSaveResult(result: IntegrationItemResult): string {
-  return result.duplicate ? "Esse link já estava salvo no Cloudy." : "Link salvo no Cloudy, na coleção Integrações.";
+function formatSaveResult(result: IntegrationItemResult): DiscordResponseContent {
+  return result.duplicate ? "♻️ Esse link já estava salvo no Cloudy." : formatSavedLinksCard(1);
+}
+
+function formatSavedLinksCard(saved: number, notices: string[] = []): DiscordComponentResponse {
+  const title = saved === 1 ? "Link salvo" : `${saved} links salvos`;
+  const components: Array<DiscordTextDisplayComponent | DiscordActionRowComponent> = [
+    { type: DISCORD_COMPONENT_TEXT_DISPLAY, content: `# ✨ ${title}` },
+    { type: DISCORD_COMPONENT_TEXT_DISPLAY, content: "Guardado em Integrações." }
+  ];
+  if (notices.length) components.push({ type: DISCORD_COMPONENT_TEXT_DISPLAY, content: `-# ${notices.join(" · ")}.` });
+  components.push({
+    type: DISCORD_COMPONENT_ACTION_ROW,
+    components: [{ type: DISCORD_COMPONENT_BUTTON, style: DISCORD_BUTTON_LINK, label: "Abrir no Cloudy", emoji: { name: "☁️" }, url: CLOUDY_APP_URL }]
+  });
+  return {
+    flags: DISCORD_COMPONENTS_V2,
+    components: [{ type: DISCORD_COMPONENT_CONTAINER, accent_color: 0x38BDF8, components }]
+  };
 }
 
 function formatDiscordError(error: unknown): string {
-  if (!(error instanceof HttpError)) return "Não foi possível concluir o comando agora. Tente novamente em instantes.";
-  if (error.message === "invalid_capture_token") return "Token inválido ou revogado. Gere um novo token no Cloudy e conecte novamente.";
-  if (error.message === "missing_capture_token") return "Informe o token de integração para conectar o Discord.";
-  if (error.message === "discord_not_connected") return "Sua conta Discord não está conectada. Use /cloudy conectar em uma DM.";
-  if (error.message === "invalid_url" || error.message === "invalid_url_length") return "Esse link não é uma URL HTTP ou HTTPS válida.";
-  if (error.message === "category_item_limit_reached") return "A coleção Integrações atingiu o limite de links.";
-  return "Não foi possível concluir o comando agora. Tente novamente em instantes.";
+  if (!(error instanceof HttpError)) return "⚠️ Não foi possível concluir o comando agora. Tente novamente em instantes.";
+  if (error.message === "invalid_capture_token") return "🔑 Token inválido ou revogado. Gere um novo token no Cloudy e conecte novamente.";
+  if (error.message === "missing_capture_token") return "🔑 Informe o token de integração para conectar o Discord.";
+  if (error.message === "discord_not_connected") return "🔌 Sua conta Discord não está conectada. Use /cloudy conectar em uma DM.";
+  if (error.message === "invalid_url" || error.message === "invalid_url_length") return "🔗 Esse link não é uma URL HTTP ou HTTPS válida.";
+  if (error.message === "category_item_limit_reached") return "📚 A coleção Integrações atingiu o limite de links.";
+  return "⚠️ Não foi possível concluir o comando agora. Tente novamente em instantes.";
 }
 
-async function editOriginalResponse(interaction: DiscordInteraction, content: string): Promise<void> {
-  const response = await fetch(`${DISCORD_API_BASE}/webhooks/${encodeURIComponent(interaction.application_id)}/${encodeURIComponent(interaction.token)}/messages/@original`, {
+async function editOriginalResponse(interaction: DiscordInteraction, responseContent: DiscordResponseContent): Promise<void> {
+  const endpoint = `${DISCORD_API_BASE}/webhooks/${encodeURIComponent(interaction.application_id)}/${encodeURIComponent(interaction.token)}/messages/@original`;
+  const body = typeof responseContent === "string"
+    ? { content: responseContent, allowed_mentions: { parse: [] } }
+    : { ...responseContent, allowed_mentions: { parse: [] } };
+  const response = await fetch(typeof responseContent === "string" ? endpoint : `${endpoint}?with_components=true`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content, allowed_mentions: { parse: [] } })
+    body: JSON.stringify(body)
   });
   if (!response.ok) throw new Error(`discord_response_${response.status}`);
 }

@@ -42,9 +42,133 @@ describe("Discord interactions", () => {
     expect(scheduled).toHaveLength(1);
     await scheduled[0];
     expect(getDiscordConnection).toHaveBeenCalledWith(expect.anything(), "discord-1");
+    expect(editResponse).toHaveBeenCalledWith(expect.stringContaining("/messages/@original"), expect.objectContaining({ body: JSON.stringify({ content: "✅ Sua conta Discord está conectada ao Cloudy.", allowed_mentions: { parse: [] } }) }));
+    editResponse.mockRestore();
+  });
+
+  it("envia um cartão com botão ao salvar um link novo", async () => {
+    const { body, headers } = await signedPayload({
+      type: 2,
+      application_id: "app-1",
+      token: "interaction-token",
+      user: { id: "discord-1" },
+      data: { type: 1, name: "cloudy", options: [{ type: 1, name: "salvar", options: [{ name: "link", type: 3, value: "https://example.com/a" }] }] }
+    });
+    const editResponse = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
+    const scheduled: Promise<void>[] = [];
+    await handleDiscordInteraction(new Request("https://cloudy-api.isumi.com.br/integrations/discord/interactions", { method: "POST", headers, body }), { ...baseEnv, DISCORD_PUBLIC_KEY: headers.get("x-test-public-key")! }, { waitUntil: (promise) => { scheduled.push(promise); } } as unknown as ExecutionContext, {
+      createDatabaseClient: vi.fn(() => ({} as never)),
+      getDiscordConnection: vi.fn(async () => connectedAccount()),
+      createIntegrationItem: vi.fn(async () => ({ duplicate: false } as never)),
+      touchDiscordConnection: vi.fn(async () => undefined)
+    });
+    await scheduled[0];
+    expect(editResponse).toHaveBeenCalledWith(expect.stringContaining("/messages/@original?with_components=true"), expect.anything());
+    expect(readEditBody(editResponse)).toEqual(savedCard("# ✨ Link salvo"));
+    editResponse.mockRestore();
+  });
+
+  it("resume uma mensagem com links sem incluir duplicidades ou erros ausentes", async () => {
+    const { body, headers } = await signedPayload({
+      type: 2,
+      application_id: "app-1",
+      token: "interaction-token",
+      user: { id: "discord-1" },
+      data: {
+        type: 3,
+        name: "Salvar no Cloudy",
+        target_id: "message-1",
+        resolved: { messages: { "message-1": { content: "https://example.com/a https://example.com/b" } } }
+      }
+    });
+    const editResponse = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
+    const scheduled: Promise<void>[] = [];
+    const response = await handleDiscordInteraction(new Request("https://cloudy-api.isumi.com.br/integrations/discord/interactions", { method: "POST", headers, body }), { ...baseEnv, DISCORD_PUBLIC_KEY: headers.get("x-test-public-key")! }, { waitUntil: (promise) => { scheduled.push(promise); } } as unknown as ExecutionContext, {
+      createDatabaseClient: vi.fn(() => ({} as never)),
+      getDiscordConnection: vi.fn(async () => connectedAccount()),
+      createIntegrationItem: vi.fn(async () => ({ duplicate: false } as never)),
+      touchDiscordConnection: vi.fn(async () => undefined)
+    });
+    expect(response.status).toBe(200);
+    await scheduled[0];
+    expect(readEditBody(editResponse)).toEqual(savedCard("# ✨ 2 links salvos"));
+    editResponse.mockRestore();
+  });
+
+  it("mantém avisos aplicáveis no cartão de um salvamento parcial", async () => {
+    const { body, headers } = await signedPayload({
+      type: 2,
+      application_id: "app-1",
+      token: "interaction-token",
+      user: { id: "discord-1" },
+      data: {
+        type: 3,
+        name: "Salvar no Cloudy",
+        target_id: "message-1",
+        resolved: { messages: { "message-1": { content: "https://example.com/new https://example.com/existing https://example.com/error" } } }
+      }
+    });
+    const editResponse = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
+    const scheduled: Promise<void>[] = [];
+    await handleDiscordInteraction(new Request("https://cloudy-api.isumi.com.br/integrations/discord/interactions", { method: "POST", headers, body }), { ...baseEnv, DISCORD_PUBLIC_KEY: headers.get("x-test-public-key")! }, { waitUntil: (promise) => { scheduled.push(promise); } } as unknown as ExecutionContext, {
+      createDatabaseClient: vi.fn(() => ({} as never)),
+      getDiscordConnection: vi.fn(async () => connectedAccount()),
+      createIntegrationItem: vi.fn(async (_db, _user, payload: unknown) => {
+        const url = (payload as { url: string }).url;
+        if (url.endsWith("/error")) throw new Error("preview_failed");
+        return { duplicate: url.endsWith("/existing") } as never;
+      }),
+      touchDiscordConnection: vi.fn(async () => undefined)
+    });
+    await scheduled[0];
+    expect(readEditBody(editResponse)).toEqual(savedCard("# ✨ Link salvo", "-# 1 já existia · 1 com erro."));
+    editResponse.mockRestore();
+  });
+
+  it("mantém a duplicidade isolada como texto sem botão", async () => {
+    const { body, headers } = await signedPayload({
+      type: 2,
+      application_id: "app-1",
+      token: "interaction-token",
+      user: { id: "discord-1" },
+      data: { type: 1, name: "cloudy", options: [{ type: 1, name: "salvar", options: [{ name: "link", type: 3, value: "https://example.com/a" }] }] }
+    });
+    const editResponse = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
+    const scheduled: Promise<void>[] = [];
+    await handleDiscordInteraction(new Request("https://cloudy-api.isumi.com.br/integrations/discord/interactions", { method: "POST", headers, body }), { ...baseEnv, DISCORD_PUBLIC_KEY: headers.get("x-test-public-key")! }, { waitUntil: (promise) => { scheduled.push(promise); } } as unknown as ExecutionContext, {
+      createDatabaseClient: vi.fn(() => ({} as never)),
+      getDiscordConnection: vi.fn(async () => connectedAccount()),
+      createIntegrationItem: vi.fn(async () => ({ duplicate: true } as never)),
+      touchDiscordConnection: vi.fn(async () => undefined)
+    });
+    await scheduled[0];
+    expect(editResponse).toHaveBeenCalledWith(expect.not.stringContaining("with_components"), expect.anything());
+    expect(readEditBody(editResponse)).toEqual({ content: "♻️ Esse link já estava salvo no Cloudy.", allowed_mentions: { parse: [] } });
     editResponse.mockRestore();
   });
 });
+
+function connectedAccount() {
+  return { discordUserId: "discord-1", userId: "user-1", shortcutTokenId: "token-1", createdAt: "now", lastUsedAt: null };
+}
+
+function readEditBody(fetchMock: { mock: { calls: unknown[][] } }): unknown {
+  const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+  return JSON.parse(request.body as string);
+}
+
+function savedCard(title: string, notice?: string) {
+  const components = [
+    { type: 10, content: title },
+    { type: 10, content: "Guardado em Integrações." }
+  ];
+  if (notice) components.push({ type: 10, content: notice });
+  components.push({
+    type: 1,
+    components: [{ type: 2, style: 5, label: "Abrir no Cloudy", emoji: { name: "☁️" }, url: "https://cloudy.isumi.com.br" }]
+  });
+  return { flags: 32768, components: [{ type: 17, accent_color: 3718648, components }], allowed_mentions: { parse: [] } };
+}
 
 async function signedPayload(payload: unknown): Promise<{ body: string; headers: Headers }> {
   const keyPair = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
