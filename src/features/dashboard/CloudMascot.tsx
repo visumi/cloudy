@@ -229,8 +229,6 @@ export function CloudMascot({ variant = "default", onRefresh, refreshing = false
     eyeLeft.renderOrder = 2;
     eyeRight.renderOrder = 2;
     character.add(eyeLeft, eyeRight);
-    const eyeLeftBase = eyeLeft.position.clone();
-    const eyeRightBase = eyeRight.position.clone();
 
     const mouth = createMouth(
       faceMaterial,
@@ -278,34 +276,19 @@ export function CloudMascot({ variant = "default", onRefresh, refreshing = false
     let isBlinking = false;
     let hoverTarget = 0;
     let hoverCurrent = 0;
-    let pointerTargetX = 0;
-    let pointerTargetY = 0;
-    let pointerCurrentX = 0;
-    let pointerCurrentY = 0;
     let reactionStartedAt = Number.NEGATIVE_INFINITY;
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const onPointerMove = (event: PointerEvent) => {
-      if (reduceMotion || event.pointerType === "touch") return;
-      pointerTargetX = Math.max(-1, Math.min(1, (event.clientX / Math.max(window.innerWidth, 1) - 0.5) * 2));
-      pointerTargetY = Math.max(-1, Math.min(1, -(event.clientY / Math.max(window.innerHeight, 1) - 0.5) * 2));
-    };
     const onPointerEnter = (event: PointerEvent) => {
       if (event.pointerType !== "touch") hoverTarget = 1;
     };
     const onPointerLeave = () => {
       hoverTarget = 0;
     };
-    const onWindowBlur = () => {
-      pointerTargetX = 0;
-      pointerTargetY = 0;
-    };
     const onFocus = () => { hoverTarget = 1; };
     const onBlur = () => onPointerLeave();
     const onClick = () => { reactionStartedAt = performance.now(); };
 
-    window.addEventListener("pointermove", onPointerMove, { passive: true });
-    window.addEventListener("blur", onWindowBlur);
     hitArea.addEventListener("pointerenter", onPointerEnter, { passive: true });
     hitArea.addEventListener("pointerleave", onPointerLeave);
     hitArea.addEventListener("focus", onFocus);
@@ -323,28 +306,11 @@ export function CloudMascot({ variant = "default", onRefresh, refreshing = false
     resize();
 
     const animate = (now: number) => {
-      const trackingEase = variant === "rainy" ? 0.055 : variant === "night" ? 0.07 : 0.1;
-      const trackingRange = variant === "rainy" ? 0.72 : variant === "night" ? 0.5 : 1;
       if (reduceMotion) {
         hoverCurrent = hoverTarget;
-        pointerCurrentX = 0;
-        pointerCurrentY = 0;
       } else {
         hoverCurrent += (hoverTarget - hoverCurrent) * 0.1;
-        pointerCurrentX += (pointerTargetX - pointerCurrentX) * trackingEase;
-        pointerCurrentY += (pointerTargetY - pointerCurrentY) * trackingEase;
       }
-
-      eyeLeft.position.set(
-        eyeLeftBase.x + pointerCurrentX * 0.045 * trackingRange,
-        eyeLeftBase.y + pointerCurrentY * 0.035 * trackingRange,
-        0.48
-      );
-      eyeRight.position.set(
-        eyeRightBase.x + pointerCurrentX * 0.045 * trackingRange,
-        eyeRightBase.y + pointerCurrentY * 0.035 * trackingRange,
-        0.48
-      );
 
       if (!reduceMotion && !isBlinking && now >= nextBlink) {
         isBlinking = true;
@@ -401,8 +367,6 @@ export function CloudMascot({ variant = "default", onRefresh, refreshing = false
     return () => {
       cancelAnimationFrame(animationFrame);
       resizeObserver.disconnect();
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("blur", onWindowBlur);
       hitArea.removeEventListener("pointerenter", onPointerEnter);
       hitArea.removeEventListener("pointerleave", onPointerLeave);
       hitArea.removeEventListener("focus", onFocus);
