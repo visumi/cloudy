@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createAccessGrant, getOwnerEmails, listAccessGrants, normalizeEmail, requireOwner, resolveAccessDecision, updateAccessGrant } from "./access";
+import { createAccessGrant, deleteAccessGrant, getOwnerEmails, listAccessGrants, normalizeEmail, requireOwner, resolveAccessDecision, updateAccessGrant } from "./access";
 import type { AuthUser, Env } from "./shared";
 
 describe("access policy", () => {
@@ -69,5 +69,15 @@ describe("access grants", () => {
     const execute = vi.fn().mockResolvedValue({ rows: [] });
     await expect(updateAccessGrant({ execute } as never, fullEnv, "owner%40example.com", { active: false })).rejects.toThrowError("cannot_disable_owner");
     await expect(updateAccessGrant({ execute } as never, fullEnv, "missing%40example.com", { active: true })).rejects.toThrowError("not_found");
+  });
+
+  it("exclui o grant de um membro, mas protege o proprietário", async () => {
+    const execute = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ email: "member@example.com", role: "member", active: 1, created_by_user_id: "owner-1", ...timestamps }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await expect(deleteAccessGrant({ execute } as never, fullEnv, "member%40example.com")).resolves.toEqual({ email: "member@example.com" });
+    expect(execute).toHaveBeenNthCalledWith(2, expect.objectContaining({ sql: "DELETE FROM access_grants WHERE email = ?", args: ["member@example.com"] }));
+    await expect(deleteAccessGrant({ execute } as never, fullEnv, "owner%40example.com")).rejects.toThrowError("cannot_delete_owner");
   });
 });

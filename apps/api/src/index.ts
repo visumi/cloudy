@@ -1,4 +1,4 @@
-import { authenticate, createAccessGrant, listAccessGrants, requireOwner, resolveAuthenticatedUser, updateAccessGrant, upsertUser } from "./access";
+import { authenticate, createAccessGrant, deleteAccessGrant, listAccessGrants, requireOwner, resolveAuthenticatedUser, updateAccessGrant, upsertUser } from "./access";
 import { bulkItemAction, createCategory, createIntegrationItem, createItem, deleteCategory, deleteItem, listCategories, listCategoryItems, listItems, previewItem, updateCategory, updateItem } from "./items";
 import { authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken } from "./integration-tokens";
 import { connectDiscord, disconnectDiscord, getDiscordConnection, touchDiscordConnection } from "./discord-connections";
@@ -40,9 +40,10 @@ export interface RequestDependencies {
   listAccessGrants?: typeof listAccessGrants;
   createAccessGrant?: typeof createAccessGrant;
   updateAccessGrant?: typeof updateAccessGrant;
+  deleteAccessGrant?: typeof deleteAccessGrant;
   fetchMascotWeather?: typeof fetchMascotWeather;
 }
-const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, listCategoryItems, createItem, updateItem, deleteItem, bulkItemAction, previewItem, listCategories, createCategory, updateCategory, deleteCategory, createIntegrationItem, authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken, connectDiscord, getDiscordConnection, touchDiscordConnection, disconnectDiscord, createShare, getShare, importShare, listAccessGrants, createAccessGrant, updateAccessGrant, fetchMascotWeather };
+const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, listCategoryItems, createItem, updateItem, deleteItem, bulkItemAction, previewItem, listCategories, createCategory, updateCategory, deleteCategory, createIntegrationItem, authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken, connectDiscord, getDiscordConnection, touchDiscordConnection, disconnectDiscord, createShare, getShare, importShare, listAccessGrants, createAccessGrant, updateAccessGrant, deleteAccessGrant, fetchMascotWeather };
 
 export default { fetch: (request: Request, env: Env, ctx: ExecutionContext) => handleRequest(request, env, defaultDependencies, ctx) } satisfies ExportedHandler<Env>;
 
@@ -96,6 +97,9 @@ export async function handleRequest(request: Request, env: Env, dependencies: Re
     }
     if (accessGrantMatch && request.method === "PATCH") {
       return json(await (dependencies.updateAccessGrant ?? defaultDependencies.updateAccessGrant!)(db, env, accessGrantMatch[1], await readRequestJson(request)), 200, responseHeaders);
+    }
+    if (accessGrantMatch && request.method === "DELETE") {
+      return json(await (dependencies.deleteAccessGrant ?? defaultDependencies.deleteAccessGrant!)(db, env, accessGrantMatch[1]), 200, responseHeaders);
     }
     if (request.method === "GET" && url.pathname === "/integrations/shortcut/token") {
       return json(await (dependencies.getShortcutToken ?? defaultDependencies.getShortcutToken!)(db, user.uid), 200, corsHeaders);

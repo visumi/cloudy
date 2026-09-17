@@ -457,6 +457,11 @@ export async function resolveLinkPreview(sourceUrl: string): Promise<ItemPreview
   const fallbackTitle = parsedUrl.hostname.replace(/^www\./i, "") || null;
   const fallbackFavicon = new URL("/favicon.ico", parsedUrl).toString();
 
+  const youtubeVideoId = getYouTubeVideoId(parsedUrl);
+  if (youtubeVideoId) {
+    return resolveYouTubePreview(youtubeVideoId, fallbackTitle, fallbackFavicon);
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), PREVIEW_TIMEOUT_MS);
 
@@ -482,6 +487,51 @@ export async function resolveLinkPreview(sourceUrl: string): Promise<ItemPreview
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+async function resolveYouTubePreview(videoId: string, fallbackTitle: string | null, fallbackFavicon: string): Promise<ItemPreview> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), PREVIEW_TIMEOUT_MS);
+
+  try {
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const oEmbedUrl = new URL("https://www.youtube.com/oembed");
+    oEmbedUrl.searchParams.set("url", videoUrl);
+    oEmbedUrl.searchParams.set("format", "json");
+
+    const response = await fetch(oEmbedUrl, {
+      headers: { Accept: "application/json", "User-Agent": "CloudyLinkPreview/1.0" },
+      signal: controller.signal
+    });
+    if (!response.ok) return { title: fallbackTitle, imageUrl: null, faviconUrl: fallbackFavicon };
+
+    const data: unknown = await response.json();
+    if (!data || typeof data !== "object") return { title: fallbackTitle, imageUrl: null, faviconUrl: fallbackFavicon };
+
+    const oEmbed = data as Record<string, unknown>;
+    const title = typeof oEmbed.title === "string" ? normalizeText(oEmbed.title).slice(0, 160) || fallbackTitle : fallbackTitle;
+    const imageUrl = typeof oEmbed.thumbnail_url === "string" ? resolveAssetUrl(oEmbed.thumbnail_url, "https://www.youtube.com") : null;
+    return { title, imageUrl, faviconUrl: fallbackFavicon };
+  } catch {
+    return { title: fallbackTitle, imageUrl: null, faviconUrl: fallbackFavicon };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function getYouTubeVideoId(url: URL): string | null {
+  const hostname = url.hostname.toLowerCase().replace(/^www\./, "");
+  const isYouTubeHost = hostname === "youtube.com" || hostname.endsWith(".youtube.com") || hostname === "youtube-nocookie.com" || hostname.endsWith(".youtube-nocookie.com");
+  let candidate: string | undefined;
+
+  if (hostname === "youtu.be") {
+    candidate = url.pathname.split("/").filter(Boolean)[0];
+  } else if (isYouTubeHost) {
+    if (url.pathname === "/watch") candidate = url.searchParams.get("v") ?? undefined;
+    else candidate = url.pathname.match(/^\/(?:shorts|live|embed|v)\/([^/?#]+)/i)?.[1];
+  }
+
+  return candidate && /^[\w-]{11}$/.test(candidate) ? candidate : null;
 }
 
 export function parseCreateItemInput(payload: unknown): CreateItemInput {

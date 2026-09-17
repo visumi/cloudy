@@ -101,10 +101,11 @@ describe("API base", () => {
     await expect(updateResponse.json()).resolves.toEqual({ error: "owner_required" });
   });
 
-  it("cria e atualiza acessos como owner", async () => {
+  it("cria, atualiza e exclui acessos como owner", async () => {
     const createAccessGrant = vi.fn(async () => ({ email: "member@example.com", active: true }));
     const updateAccessGrant = vi.fn(async () => ({ email: "member@example.com", active: false }));
-    const dependencies: RequestDependencies = { authenticate: vi.fn(async () => identity), createDatabaseClient: vi.fn(() => ({} as never)), resolveAuthenticatedUser: vi.fn(async () => profile), upsertUser: vi.fn(), listItems: vi.fn(), createItem: vi.fn(), previewItem: vi.fn(), createAccessGrant, updateAccessGrant };
+    const deleteAccessGrant = vi.fn(async () => ({ email: "member@example.com" }));
+    const dependencies: RequestDependencies = { authenticate: vi.fn(async () => identity), createDatabaseClient: vi.fn(() => ({} as never)), resolveAuthenticatedUser: vi.fn(async () => profile), upsertUser: vi.fn(), listItems: vi.fn(), createItem: vi.fn(), previewItem: vi.fn(), createAccessGrant, updateAccessGrant, deleteAccessGrant };
 
     const createResponse = await handleRequest(new Request("https://cloudy-api.isumi.com.br/admin/access-users", { method: "POST", headers: { Authorization: "Bearer test", "Content-Type": "application/json" }, body: JSON.stringify({ email: "member@example.com" }) }), env, dependencies);
     expect(createResponse.status).toBe(201);
@@ -115,6 +116,12 @@ describe("API base", () => {
     expect(updateResponse.status).toBe(200);
     expect(updateResponse.headers.get("Cache-Control")).toBe("no-store");
     expect(updateAccessGrant).toHaveBeenCalledWith(expect.anything(), env, "member%40example.com", { active: false });
+
+    const deleteResponse = await handleRequest(new Request("https://cloudy-api.isumi.com.br/admin/access-users/member%40example.com", { method: "DELETE", headers: { Authorization: "Bearer test" } }), env, dependencies);
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.headers.get("Cache-Control")).toBe("no-store");
+    await expect(deleteResponse.json()).resolves.toEqual({ email: "member@example.com" });
+    expect(deleteAccessGrant).toHaveBeenCalledWith(expect.anything(), env, "member%40example.com");
   });
 
   it("lista itens apenas para o usuário autenticado", async () => {

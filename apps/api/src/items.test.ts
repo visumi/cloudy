@@ -160,6 +160,40 @@ describe("link preview", () => {
     });
   });
 
+  it.each([
+    "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "https://youtu.be/dQw4w9WgXcQ?t=42",
+    "https://m.youtube.com/shorts/dQw4w9WgXcQ"
+  ])("usa oEmbed para extrair título e thumbnail de links do YouTube: %s", async (url) => {
+    let requestedUrl = "";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      requestedUrl = String(input);
+      return new Response(JSON.stringify({
+        title: "Título do vídeo",
+        thumbnail_url: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(resolveLinkPreview(url)).resolves.toEqual({
+      title: "Título do vídeo",
+      imageUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+      faviconUrl: new URL("/favicon.ico", url).toString()
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(requestedUrl).toBe("https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DdQw4w9WgXcQ&format=json");
+  });
+
+  it("mantém fallback quando o oEmbed rejeita o vídeo", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("Not Found", { status: 404 })));
+
+    await expect(resolveLinkPreview("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).resolves.toEqual({
+      title: "youtube.com",
+      imageUrl: null,
+      faviconUrl: "https://www.youtube.com/favicon.ico"
+    });
+  });
+
   it("usa título do domínio e favicon padrão quando o site falha", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
 
@@ -240,6 +274,29 @@ describe("link preview", () => {
     expect(first.duplicate).toBe(false);
     expect(first.item.category).toEqual({ id: INTEGRATIONS_CATEGORY_ID, name: "Integrações", color: "#38BDF8" });
     expect(second.duplicate).toBe(true);
+  });
+
+  it("salva título e thumbnail do YouTube em links recebidos pela integração", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      title: "Vídeo no YouTube",
+      thumbnail_url: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"
+    }), { status: 200, headers: { "content-type": "application/json" } })));
+    let insertedArgs: unknown[] = [];
+    const execute = vi.fn(async (statement: { sql: string; args?: unknown[] }) => {
+      if (statement.sql.includes("system_category = 'integrations'") && statement.sql.includes("LIMIT 1")) return { rows: [] };
+      if (statement.sql.includes("INSERT INTO items")) { insertedArgs = statement.args ?? []; return { rows: [] }; }
+      if (statement.sql.includes("WHERE i.id = ?")) return { rows: [{ id: insertedArgs[0], name: insertedArgs[2], url: insertedArgs[3], image_url: insertedArgs[4], favicon_url: insertedArgs[5], observation: insertedArgs[6], system_category: "integrations", created_at: "2026-09-12", updated_at: "2026-09-12", category_id: null, category_name: null, category_color: null }] };
+      return { rows: [] };
+    });
+
+    const result = await createIntegrationItem({ execute } as Client, "user-1", { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" });
+
+    expect(result.item.name).toBe("Vídeo no YouTube");
+    expect(result.item.imageUrl).toBe("https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg");
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({
+      sql: expect.stringContaining("INSERT INTO items"),
+      args: expect.arrayContaining(["Vídeo no YouTube", "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"])
+    }));
   });
 
   it("preenche a prévia de uma integração duplicada que ainda não tinha metadados", async () => {

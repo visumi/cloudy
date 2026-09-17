@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type AnimationEvent, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { CircleUser, LoaderCircle, RefreshCw, ShieldCheck, UserPlus, X } from "lucide-react";
+import { CircleUser, LoaderCircle, RefreshCw, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
 import { Switch } from "../../components/ui/switch";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
 import { ApiError, apiRequest } from "../../lib/api";
@@ -181,6 +181,21 @@ export function AccessAdminDialog({ open, onClose, onClosingChange }: AccessAdmi
     }
   };
 
+  const deleteUser = async (user: AccessUser) => {
+    if (user.role === "owner" || updatingEmail) return;
+    setMessage(null);
+    setUpdatingEmail(user.email);
+    try {
+      await apiRequest<{ email: string }>(`/admin/access-users/${encodeURIComponent(user.email)}`, { method: "DELETE" });
+      setUsers((current) => current.filter((item) => item.email !== user.email));
+      setMessage({ tone: "success", text: "Acesso excluído." });
+    } catch (error) {
+      setMessage({ tone: "error", text: formatMutationError(error, "Não foi possível excluir este acesso.") });
+    } finally {
+      setUpdatingEmail(null);
+    }
+  };
+
   if (!shouldRender) return null;
 
   const handleExitAnimationEnd = (event: AnimationEvent<HTMLElement>) => {
@@ -268,6 +283,17 @@ export function AccessAdminDialog({ open, onClose, onClosingChange }: AccessAdmi
                   label={accessUser.role === "owner" ? "Acesso do proprietário protegido" : `${accessUser.active ? "Desativar" : "Ativar"} acesso de ${accessUser.email}`}
                   onCheckedChange={(active) => void setActive(accessUser, active)}
                 />
+                {accessUser.role !== "owner" && <button
+                  className="access-admin-delete"
+                  type="button"
+                  disabled={Boolean(updatingEmail && updatingEmail !== accessUser.email)}
+                  aria-busy={updatingEmail === accessUser.email}
+                  aria-label={updatingEmail === accessUser.email ? `Excluindo acesso de ${accessUser.email}` : `Excluir acesso de ${accessUser.email}`}
+                  title={`Excluir acesso de ${accessUser.email}`}
+                  onClick={() => void deleteUser(accessUser)}
+                >
+                  {updatingEmail === accessUser.email ? <LoaderCircle className="button-loading-spinner" aria-hidden="true" /> : <Trash2 aria-hidden="true" />}
+                </button>}
               </article>
             ))}
           </div>
@@ -292,7 +318,7 @@ function formatMutationError(error: unknown, fallback: string): string {
   if (!(error instanceof ApiError)) return fallback;
   if (error.code === "invalid_email") return "Informe um e-mail válido.";
   if (error.code === "owner_required") return "Sua conta não pode gerenciar acessos.";
-  if (error.code === "cannot_disable_owner") return "O acesso do proprietário não pode ser desativado.";
+  if (error.code === "cannot_disable_owner" || error.code === "cannot_delete_owner") return "O acesso do proprietário é protegido.";
   return fallback;
 }
 
@@ -301,5 +327,5 @@ function formatLastLogin(value: string | null | undefined): string {
   const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value) ? `${value.replace(" ", "T")}Z` : value;
   const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) return "Último login registrado";
-  return `Último login: ${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(date)}`;
+  return `Último login: ${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(date)}`;
 }

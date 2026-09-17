@@ -59,6 +59,13 @@ describe("AccessAdminDialog", () => {
     expect(screen.queryByText("Inativo")).not.toBeInTheDocument();
   });
 
+  it("exibe último login no horário de São Paulo", async () => {
+    mockedApiRequest.mockResolvedValueOnce([owner]);
+    render(<AccessAdminDialog open onClose={vi.fn()} />);
+
+    expect(await screen.findByText("Último login: 15/09/2026, 09:00")).toBeInTheDocument();
+  });
+
   it("mantém o botão de liberar acesso apenas com ícone e nome acessível", () => {
     mockedApiRequest.mockReturnValueOnce(new Promise<never>(() => {}));
     render(<AccessAdminDialog open onClose={vi.fn()} />);
@@ -92,6 +99,19 @@ describe("AccessAdminDialog", () => {
     await waitFor(() => expect(mockedApiRequest).toHaveBeenLastCalledWith("/admin/access-users/member%40example.com", { method: "PATCH", body: JSON.stringify({ active: true }) }));
     expect(await screen.findByText("Acesso ativado.")).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Desativar acesso de member@example.com" })).toBeInTheDocument();
+  });
+
+  it("exclui um membro sem afetar o proprietário", async () => {
+    mockedApiRequest.mockResolvedValueOnce([owner, member]);
+    mockedApiRequest.mockResolvedValueOnce({ email: member.email });
+    render(<AccessAdminDialog open onClose={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Excluir acesso de member@example.com" }));
+
+    await waitFor(() => expect(mockedApiRequest).toHaveBeenLastCalledWith("/admin/access-users/member%40example.com", { method: "DELETE" }));
+    expect(await screen.findByText("Acesso excluído.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Excluir acesso de member@example.com" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Excluir acesso de owner@example.com" })).not.toBeInTheDocument();
   });
 
   it("valida o e-mail antes de chamar a API", async () => {

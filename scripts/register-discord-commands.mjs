@@ -47,7 +47,16 @@ for (const command of commands) {
     body: JSON.stringify(command)
   });
   if (!response.ok) {
-    throw new Error(`Falha ao registrar ${command.name}: HTTP ${response.status}`);
+    const responseBody = await response.text();
+    let detail = responseBody.trim();
+    try {
+      const parsed = JSON.parse(responseBody);
+      detail = parsed.message || detail;
+      if (parsed.code) detail += ` (código ${parsed.code})`;
+    } catch {
+      // Keep the raw response when Discord does not return JSON.
+    }
+    throw new Error(`Falha ao registrar ${command.name}: HTTP ${response.status}${detail ? ` — ${detail}` : ""}`);
   }
   console.log(`Comando registrado: ${command.name}`);
 }

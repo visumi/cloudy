@@ -161,6 +161,18 @@ export async function updateAccessGrant(db: Client, env: Env, rawEmail: string, 
   return mapAccessGrant((await findAccessGrant(db, email, true))!, env);
 }
 
+export async function deleteAccessGrant(db: Client, env: Env, rawEmail: string): Promise<{ email: string }> {
+  const email = normalizeEmail(decodeEmail(rawEmail));
+  if (!isValidEmail(email)) throw new HttpError(400, "invalid_email");
+  if (isOwnerEmail(email, env)) throw new HttpError(400, "cannot_delete_owner");
+
+  const existing = await findAccessGrant(db, email);
+  if (!existing) throw new HttpError(404, "not_found");
+
+  await db.execute({ sql: "DELETE FROM access_grants WHERE email = ?", args: [email] });
+  return { email };
+}
+
 async function ensureOwnerAccessGrants(db: Client, env: Env): Promise<void> {
   for (const email of getOwnerEmails(env)) {
     await db.execute({
