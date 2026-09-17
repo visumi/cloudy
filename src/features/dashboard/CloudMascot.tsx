@@ -26,6 +26,8 @@ type CloudMascotVariant = "default" | "rainy" | "night";
 
 interface CloudMascotProps {
   variant?: CloudMascotVariant;
+  onRefresh: () => void | Promise<void>;
+  refreshing?: boolean;
 }
 
 function createCloudGeometry() {
@@ -113,12 +115,14 @@ function createRaindropGeometry() {
   return geometry;
 }
 
-export function CloudMascot({ variant = "default" }: CloudMascotProps) {
+export function CloudMascot({ variant = "default", onRefresh, refreshing = false }: CloudMascotProps) {
   const mountRef = useRef<HTMLDivElement>(null);
+  const hitAreaRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const mount = mountRef.current;
-    if (!mount) return;
+    const hitArea = hitAreaRef.current;
+    if (!mount || !hitArea) return;
 
     const scene = new Scene();
     scene.background = null;
@@ -157,6 +161,8 @@ export function CloudMascot({ variant = "default" }: CloudMascotProps) {
     const mascot = new Group();
     mascot.position.y = -0.12;
     scene.add(mascot);
+    const character = new Group();
+    mascot.add(character);
 
     const moonGeometry = variant === "night" ? new SphereGeometry(0.46, 48, 32) : null;
     const moonMaterial = variant === "night"
@@ -198,8 +204,9 @@ export function CloudMascot({ variant = "default" }: CloudMascotProps) {
 
     const cloudGeometry = createCloudGeometry();
     const cloud = new Mesh(cloudGeometry, cloudMaterial);
-    cloud.scale.set(0.82, 0.76, 0.82);
-    mascot.add(cloud);
+    const cloudBaseScale = new Vector3(0.82, 0.76, 0.82);
+    cloud.scale.copy(cloudBaseScale);
+    character.add(cloud);
 
     const eyeRadius = 0.105;
     const sleepyEyeTilt = 0.16;
@@ -221,13 +228,15 @@ export function CloudMascot({ variant = "default" }: CloudMascotProps) {
     }
     eyeLeft.renderOrder = 2;
     eyeRight.renderOrder = 2;
-    mascot.add(eyeLeft, eyeRight);
+    character.add(eyeLeft, eyeRight);
+    const eyeLeftBase = eyeLeft.position.clone();
+    const eyeRightBase = eyeRight.position.clone();
 
     const mouth = createMouth(
       faceMaterial,
       variant === "night" ? "sleepy" : variant === "rainy" ? "sad" : "happy"
     );
-    mascot.add(mouth.group);
+    character.add(mouth.group);
 
     const raindropGeometry = variant === "rainy" ? createRaindropGeometry() : null;
     const raindrops = variant === "rainy" && raindropGeometry
@@ -257,7 +266,7 @@ export function CloudMascot({ variant = "default" }: CloudMascotProps) {
           const mesh = new Mesh(raindropGeometry, material);
           mesh.position.set(drop.x, -0.64, 0.12);
           mesh.scale.set(drop.width, drop.length, 0.8);
-          mascot.add(mesh);
+          character.add(mesh);
           return { ...drop, mesh, material };
         })
       : [];
@@ -267,7 +276,41 @@ export function CloudMascot({ variant = "default" }: CloudMascotProps) {
     let nextBlink = startedAt + 3200;
     let blinkStarted = 0;
     let isBlinking = false;
+    let hoverTarget = 0;
+    let hoverCurrent = 0;
+    let pointerTargetX = 0;
+    let pointerTargetY = 0;
+    let pointerCurrentX = 0;
+    let pointerCurrentY = 0;
+    let reactionStartedAt = Number.NEGATIVE_INFINITY;
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (reduceMotion || event.pointerType === "touch") return;
+      pointerTargetX = Math.max(-1, Math.min(1, (event.clientX / Math.max(window.innerWidth, 1) - 0.5) * 2));
+      pointerTargetY = Math.max(-1, Math.min(1, -(event.clientY / Math.max(window.innerHeight, 1) - 0.5) * 2));
+    };
+    const onPointerEnter = (event: PointerEvent) => {
+      if (event.pointerType !== "touch") hoverTarget = 1;
+    };
+    const onPointerLeave = () => {
+      hoverTarget = 0;
+    };
+    const onWindowBlur = () => {
+      pointerTargetX = 0;
+      pointerTargetY = 0;
+    };
+    const onFocus = () => { hoverTarget = 1; };
+    const onBlur = () => onPointerLeave();
+    const onClick = () => { reactionStartedAt = performance.now(); };
+
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
+    window.addEventListener("blur", onWindowBlur);
+    hitArea.addEventListener("pointerenter", onPointerEnter, { passive: true });
+    hitArea.addEventListener("pointerleave", onPointerLeave);
+    hitArea.addEventListener("focus", onFocus);
+    hitArea.addEventListener("blur", onBlur);
+    hitArea.addEventListener("click", onClick);
 
     const resize = () => {
       const { width, height } = mount.getBoundingClientRect();
@@ -280,8 +323,28 @@ export function CloudMascot({ variant = "default" }: CloudMascotProps) {
     resize();
 
     const animate = (now: number) => {
-      eyeLeft.position.z = 0.48;
-      eyeRight.position.z = 0.48;
+      const trackingEase = variant === "rainy" ? 0.055 : variant === "night" ? 0.07 : 0.1;
+      const trackingRange = variant === "rainy" ? 0.72 : variant === "night" ? 0.5 : 1;
+      if (reduceMotion) {
+        hoverCurrent = hoverTarget;
+        pointerCurrentX = 0;
+        pointerCurrentY = 0;
+      } else {
+        hoverCurrent += (hoverTarget - hoverCurrent) * 0.1;
+        pointerCurrentX += (pointerTargetX - pointerCurrentX) * trackingEase;
+        pointerCurrentY += (pointerTargetY - pointerCurrentY) * trackingEase;
+      }
+
+      eyeLeft.position.set(
+        eyeLeftBase.x + pointerCurrentX * 0.045 * trackingRange,
+        eyeLeftBase.y + pointerCurrentY * 0.035 * trackingRange,
+        0.48
+      );
+      eyeRight.position.set(
+        eyeRightBase.x + pointerCurrentX * 0.045 * trackingRange,
+        eyeRightBase.y + pointerCurrentY * 0.035 * trackingRange,
+        0.48
+      );
 
       if (!reduceMotion && !isBlinking && now >= nextBlink) {
         isBlinking = true;
@@ -301,6 +364,23 @@ export function CloudMascot({ variant = "default" }: CloudMascotProps) {
         eyeRight.scale.y = 1;
       }
 
+      let reactionLift = 0;
+      let reactionTilt = 0;
+      let reactionScale = 1;
+      if (!reduceMotion) {
+        const reactionProgress = (now - reactionStartedAt) / 460;
+        if (reactionProgress >= 0 && reactionProgress <= 1) {
+          const variantStrength = variant === "rainy" ? 0.78 : variant === "night" ? 0.62 : 1;
+          reactionLift = Math.sin(reactionProgress * Math.PI) * 0.17 * variantStrength;
+          reactionTilt = Math.sin(reactionProgress * Math.PI * 2) * (1 - reactionProgress) * 0.045 * variantStrength;
+          reactionScale = 1 + Math.sin(reactionProgress * Math.PI) * 0.025 * variantStrength;
+        }
+      }
+
+      const hoverScale = 1 + hoverCurrent * 0.03;
+      character.scale.setScalar(hoverScale * reactionScale);
+      character.position.y = reactionLift;
+      character.rotation.z = reactionTilt;
       mascot.position.y = -0.12 + (reduceMotion ? 0 : Math.sin(now * 0.0013) * 0.018);
       for (const drop of raindrops) {
         if (reduceMotion) {
@@ -321,6 +401,13 @@ export function CloudMascot({ variant = "default" }: CloudMascotProps) {
     return () => {
       cancelAnimationFrame(animationFrame);
       resizeObserver.disconnect();
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("blur", onWindowBlur);
+      hitArea.removeEventListener("pointerenter", onPointerEnter);
+      hitArea.removeEventListener("pointerleave", onPointerLeave);
+      hitArea.removeEventListener("focus", onFocus);
+      hitArea.removeEventListener("blur", onBlur);
+      hitArea.removeEventListener("click", onClick);
       renderer.dispose();
       cloudMaterial.dispose();
       faceMaterial.dispose();
@@ -344,5 +431,18 @@ export function CloudMascot({ variant = "default" }: CloudMascotProps) {
       ? "Nuvem 3D sonolenta do Cloudy com a lua ao fundo"
       : "Nuvem 3D do Cloudy";
 
-  return <div ref={mountRef} className={`cloud-mascot cloud-mascot--${variant} cloud-mascot--ready`} role="img" aria-label={label} />;
+  return (
+    <div ref={mountRef} className={`cloud-mascot cloud-mascot--${variant} cloud-mascot--ready`}>
+      <button
+        ref={hitAreaRef}
+        className="cloud-mascot-hit-area"
+        type="button"
+        aria-label="Atualizar itens da plataforma"
+        aria-busy={refreshing}
+        aria-disabled={refreshing}
+        title={`${label}. Clique para atualizar os itens.`}
+        onClick={() => { if (!refreshing) void onRefresh(); }}
+      />
+    </div>
+  );
 }

@@ -12,7 +12,11 @@ vi.mock("../../hooks/use-auth", () => ({
     user: { email: "ana@example.com", photoURL: null }
   })
 }));
-vi.mock("./CloudMascot", () => ({ CloudMascot: () => <div aria-hidden="true" /> }));
+vi.mock("./CloudMascot", () => ({
+  CloudMascot: ({ onRefresh, refreshing }: { onRefresh: () => void | Promise<void>; refreshing?: boolean }) => (
+    <button type="button" aria-label="Atualizar itens da plataforma" aria-busy={refreshing} onClick={() => void onRefresh()} />
+  )
+}));
 vi.mock("./use-mascot-variant", () => ({ useMascotVariant: () => "default" }));
 vi.mock("../items/ItemGraph", () => ({
   FallbackImage: ({ alt, className }: { alt: string; className: string }) => <img alt={alt} className={className} />,
@@ -112,6 +116,29 @@ describe("CloudyShell", () => {
     expect(mockedApiRequest).not.toHaveBeenCalledWith("/items");
     fireEvent.click(screen.getByRole("button", { name: "Abrir coleção Ideias" }));
     await waitFor(() => expect(mockedApiRequest).toHaveBeenCalledWith("/categories/category-1/items"));
+  });
+
+  it("atualiza superfícies carregadas ao clicar no mascote", async () => {
+    mockedApiRequest.mockImplementation((path) => {
+      if (path === "/categories") return Promise.resolve({ categories: [{ id: "category-1", name: "Ideias", color: "#A78BFA", itemCount: 0, recentItems: [] }] });
+      return Promise.resolve({ items: [] });
+    });
+    render(<CloudyShell />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Abrir coleção Ideias" }));
+    await waitFor(() => expect(mockedApiRequest).toHaveBeenCalledWith("/categories/category-1/items"));
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+    await waitFor(() => expect(mockedApiRequest).toHaveBeenCalledWith("/items"));
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Atualizar itens da plataforma" }));
+
+    await waitFor(() => {
+      expect(mockedApiRequest.mock.calls.filter(([path]) => path === "/categories")).toHaveLength(2);
+      expect(mockedApiRequest.mock.calls.filter(([path]) => path === "/categories/category-1/items")).toHaveLength(2);
+      expect(mockedApiRequest.mock.calls.filter(([path]) => path === "/items")).toHaveLength(2);
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent("Itens atualizados.");
   });
 
   it("insere o item criado no card e preserva a atualização se a revalidação falhar", async () => {

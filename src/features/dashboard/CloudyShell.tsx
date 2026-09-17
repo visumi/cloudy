@@ -76,6 +76,7 @@ export function CloudyShell({ onReadyChange }: CloudyShellProps) {
   const [categoryItemsLoading, setCategoryItemsLoading] = useState(false);
   const [categoryItemsError, setCategoryItemsError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [isMascotRefreshing, setIsMascotRefreshing] = useState(false);
   const categoriesRequestId = useRef(0);
   const categoryRequestId = useRef(0);
   const searchItemsRequestId = useRef(0);
@@ -86,6 +87,7 @@ export function CloudyShell({ onReadyChange }: CloudyShellProps) {
   const itemDialogClosingStartedRef = useRef(false);
   const itemDeleteClosingStartedRef = useRef(false);
   const categoryCacheRefreshGenerationRef = useRef(0);
+  const mascotRefreshingRef = useRef(false);
   const isActionCloudSuppressed = bulkActionMode !== null || isBulkActionClosing || isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isAccessAdminOpen || isAccessAdminClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
   const isModalOpen = bulkActionMode !== null || isBulkActionClosing || isItemDialogOpen || isItemDialogClosing || detailItem !== null || isItemDeleteOpen || isItemDeleteClosing || isTagManagerOpen || isIntegrationDialogOpen || isIntegrationDialogClosing || isAccessAdminOpen || isAccessAdminClosing || isShareDialogOpen || isShareDialogClosing || sharedShareId !== null || isSharedDialogClosing || isSearchOpen;
   const photoURL = user?.photoURL ?? profile?.picture;
@@ -106,7 +108,7 @@ export function CloudyShell({ onReadyChange }: CloudyShellProps) {
   }, [categoriesLoading]);
 
   const loadSearchItems = useCallback(async ({ background = false, force = false, preserveItem }: RefreshOptions = {}) => {
-    if (!force && (searchItemsLoadedRef.current || searchItemsPendingRequestId.current !== null)) return;
+    if (!force && (searchItemsLoadedRef.current || searchItemsPendingRequestId.current !== null)) return true;
     const requestId = ++searchItemsRequestId.current;
     searchItemsPendingRequestId.current = requestId;
     if (!background) {
@@ -118,8 +120,10 @@ export function CloudyShell({ onReadyChange }: CloudyShellProps) {
       if (requestId !== searchItemsRequestId.current) return;
       setSearchItems(preserveItem ? upsertItem(response.items, preserveItem) : sortUniqueItems(response.items));
       searchItemsLoadedRef.current = true;
+      return true;
     } catch {
       if (requestId === searchItemsRequestId.current && !background) setSearchItemsError("Não conseguimos abrir sua busca agora.");
+      return false;
     } finally {
       if (requestId === searchItemsRequestId.current) {
         searchItemsPendingRequestId.current = null;
@@ -159,8 +163,10 @@ export function CloudyShell({ onReadyChange }: CloudyShellProps) {
       const response = await apiRequest<CategoriesResponse>("/categories");
       if (requestId !== categoriesRequestId.current) return;
       setCategories(preserveItem ? updateCategorySummary(response.categories, preserveItem, toCategoryRecentItem(preserveItem)) : response.categories);
+      return true;
     } catch {
       if (requestId === categoriesRequestId.current && !background) setCategoriesError("Não conseguimos abrir suas coleções agora.");
+      return false;
     } finally {
       if (requestId === categoriesRequestId.current) setCategoriesLoading(false);
     }
@@ -174,7 +180,7 @@ export function CloudyShell({ onReadyChange }: CloudyShellProps) {
     if (!background) setCategoryItemsError(null);
     if (!force && categoryItems[categoryId]) {
       setCategoryItemsLoading(false);
-      return;
+      return true;
     }
 
     if (!background) setCategoryItemsLoading(true);
@@ -182,9 +188,11 @@ export function CloudyShell({ onReadyChange }: CloudyShellProps) {
       const response = await apiRequest<ItemsResponse>(`/categories/${encodeURIComponent(categoryId)}/items`);
       if (requestId !== categoryRequestId.current) return;
       setCategoryItems((current) => ({ ...current, [categoryId]: preserveItem ? upsertItem(response.items, preserveItem) : sortUniqueItems(response.items) }));
+      return true;
     } catch {
       if (requestId !== categoryRequestId.current) return;
       if (!background) setCategoryItemsError("Não conseguimos abrir os itens desta coleção.");
+      return false;
     } finally {
       if (requestId === categoryRequestId.current) setCategoryItemsLoading(false);
     }
@@ -285,17 +293,46 @@ export function CloudyShell({ onReadyChange }: CloudyShellProps) {
     setSearchItemsLoading(false);
   }, []);
 
-  const revalidateLoadedCategoryItems = useCallback((categoryIds: string[]) => {
+  const revalidateLoadedCategoryItems = useCallback(async (categoryIds: string[]) => {
     const generation = categoryCacheRefreshGenerationRef.current;
-    for (const categoryId of categoryIds) {
-      void apiRequest<ItemsResponse>(`/categories/${encodeURIComponent(categoryId)}/items`).then((response) => {
+    const results = await Promise.all(categoryIds.map((categoryId) =>
+      apiRequest<ItemsResponse>(`/categories/${encodeURIComponent(categoryId)}/items`).then((response) => {
         if (generation !== categoryCacheRefreshGenerationRef.current) return;
         setCategoryItems((current) => Object.prototype.hasOwnProperty.call(current, categoryId)
           ? { ...current, [categoryId]: sortUniqueItems(response.items) }
           : current);
-      }).catch(() => undefined);
-    }
+        return true;
+      }).catch(() => false)
+    ));
+    return results.every(Boolean);
   }, []);
+
+  const refreshPlatformItems = useCallback(async () => {
+    if (mascotRefreshingRef.current) return;
+    mascotRefreshingRef.current = true;
+    setIsMascotRefreshing(true);
+
+    const loadedCategoryIds = Object.keys(categoryItems).filter((categoryId) => categoryId !== selectedCategoryId);
+    const shouldRefreshSearch = searchItemsLoadedRef.current;
+    invalidateItemRequests();
+
+    try {
+      const results = await Promise.all([
+        loadCategories({ background: true }),
+        selectedCategoryId
+          ? loadCategoryItems(selectedCategoryId, { background: true, force: true, select: false })
+          : Promise.resolve(true),
+        revalidateLoadedCategoryItems(loadedCategoryIds),
+        shouldRefreshSearch
+          ? loadSearchItems({ background: true, force: true })
+          : Promise.resolve(true)
+      ]);
+      showSavedMessage(setSavedMessage, results.every(Boolean) ? "Itens atualizados." : "Não foi possível atualizar todos os itens.");
+    } finally {
+      mascotRefreshingRef.current = false;
+      setIsMascotRefreshing(false);
+    }
+  }, [categoryItems, invalidateItemRequests, loadCategories, loadCategoryItems, loadSearchItems, revalidateLoadedCategoryItems, selectedCategoryId]);
 
   const performBulkAction = useCallback(async (payload: BulkItemActionPayload) => {
     const response = await apiRequest<BulkItemActionResponse>("/items/bulk-actions", { method: "POST", body: JSON.stringify(payload) });
@@ -316,7 +353,7 @@ export function CloudyShell({ onReadyChange }: CloudyShellProps) {
     setSelectionMode(false);
     showSavedMessage(setSavedMessage, payload.action === "delete" ? `${payload.itemIds.length} ${payload.itemIds.length === 1 ? "item excluído" : "itens excluídos"} da sua nuvem.` : `${payload.itemIds.length} ${payload.itemIds.length === 1 ? "item movido" : "itens movidos"}.`);
     void loadCategories({ background: true });
-    revalidateLoadedCategoryItems(Object.keys(categoryItems));
+    void revalidateLoadedCategoryItems(Object.keys(categoryItems));
     if (searchItemsLoadedRef.current) void loadSearchItems({ background: true, force: true });
   }, [categoryItems, invalidateItemRequests, loadCategories, loadSearchItems, revalidateLoadedCategoryItems]);
 
@@ -335,7 +372,7 @@ export function CloudyShell({ onReadyChange }: CloudyShellProps) {
       setSearchItemsError(null);
     }
     void loadCategories({ background: true });
-    revalidateLoadedCategoryItems(loadedCategoryIds);
+    void revalidateLoadedCategoryItems(loadedCategoryIds);
     if (shouldRefreshSearch) void loadSearchItems({ background: true, force: true });
   }, [categoryItems, invalidateItemRequests, loadCategories, loadSearchItems, revalidateLoadedCategoryItems]);
 
@@ -438,7 +475,7 @@ export function CloudyShell({ onReadyChange }: CloudyShellProps) {
           activeItemId={detailItem?.id}
         >
           <Suspense fallback={<div className="cloud-mascot" aria-hidden="true" />}>
-            {mascotVariant ? <CloudMascot variant={mascotVariant} /> : <div className="cloud-mascot" aria-hidden="true" />}
+            {mascotVariant ? <CloudMascot variant={mascotVariant} onRefresh={refreshPlatformItems} refreshing={isMascotRefreshing} /> : <div className="cloud-mascot" aria-hidden="true" />}
           </Suspense>
         </ItemGraph>
       </section>
