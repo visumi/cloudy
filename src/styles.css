@@ -400,7 +400,7 @@ h2 { margin-bottom: 8px; font-size: 1.2rem; }
 .command-input { width: 100%; min-width: 0; height: 52px; border: 0; padding: 0 10px; color: var(--sky-900); background: transparent; font-size: .94rem; outline: none; }
 .command-input::placeholder { color: oklch(0.48 0.045 245); }
 .command-input::-webkit-search-cancel-button { display: none; }
-.command-input-clear { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; margin-right: 3px; border: 0; border-radius: 9px; color: var(--sky-700); background: #e0f2fe; cursor: pointer; }
+.command-input-clear { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; margin-right: 16px; border: 0; border-radius: 9px; color: var(--sky-700); background: #e0f2fe; cursor: pointer; }
 .command-input-clear:hover { color: var(--sky-900); background: #bae6fd; }
 .command-input-clear:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
 .command-input-clear svg { width: 15px; height: 15px; }
