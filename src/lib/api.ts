@@ -26,3 +26,15 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}, token?
   }
   return response.json() as Promise<T>;
 }
+
+const itemPreviewRefreshes = new Map<string, Promise<string | null>>();
+
+export function refreshItemPreview(itemId: string): Promise<string | null> {
+  const existing = itemPreviewRefreshes.get(itemId);
+  if (existing) return existing;
+  const refresh = apiRequest<{ imageUrl: string | null }>(`/items/${encodeURIComponent(itemId)}/preview/refresh`, { method: "POST" })
+    .then((result) => result.imageUrl)
+    .finally(() => itemPreviewRefreshes.delete(itemId));
+  itemPreviewRefreshes.set(itemId, refresh);
+  return refresh;
+}

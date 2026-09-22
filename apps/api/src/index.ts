@@ -1,5 +1,5 @@
 import { authenticate, createAccessGrant, deleteAccessGrant, listAccessGrants, requireOwner, resolveAuthenticatedUser, updateAccessGrant, upsertUser } from "./access";
-import { bulkItemAction, createCategory, createIntegrationItem, createItem, deleteCategory, deleteItem, listCategories, listCategoryItems, listItems, previewItem, updateCategory, updateItem } from "./items";
+import { bulkItemAction, createCategory, createIntegrationItem, createItem, deleteCategory, deleteItem, listCategories, listCategoryItems, listItems, previewItem, refreshItemPreview, updateCategory, updateItem } from "./items";
 import { authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken } from "./integration-tokens";
 import { connectDiscord, disconnectDiscord, getDiscordConnection, touchDiscordConnection } from "./discord-connections";
 import { handleDiscordInteraction } from "./discord";
@@ -21,6 +21,7 @@ export interface RequestDependencies {
   deleteItem?: typeof deleteItem;
   bulkItemAction?: typeof bulkItemAction;
   previewItem: typeof previewItem;
+  refreshItemPreview?: typeof refreshItemPreview;
   listCategories?: typeof listCategories;
   createCategory?: typeof createCategory;
   updateCategory?: typeof updateCategory;
@@ -43,7 +44,7 @@ export interface RequestDependencies {
   deleteAccessGrant?: typeof deleteAccessGrant;
   fetchMascotWeather?: typeof fetchMascotWeather;
 }
-const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, listCategoryItems, createItem, updateItem, deleteItem, bulkItemAction, previewItem, listCategories, createCategory, updateCategory, deleteCategory, createIntegrationItem, authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken, connectDiscord, getDiscordConnection, touchDiscordConnection, disconnectDiscord, createShare, getShare, importShare, listAccessGrants, createAccessGrant, updateAccessGrant, deleteAccessGrant, fetchMascotWeather };
+const defaultDependencies: RequestDependencies = { authenticate, createDatabaseClient, resolveAuthenticatedUser, upsertUser, listItems, listCategoryItems, createItem, updateItem, deleteItem, bulkItemAction, previewItem, refreshItemPreview, listCategories, createCategory, updateCategory, deleteCategory, createIntegrationItem, authenticateShortcutToken, createShortcutToken, getShortcutToken, revokeShortcutToken, connectDiscord, getDiscordConnection, touchDiscordConnection, disconnectDiscord, createShare, getShare, importShare, listAccessGrants, createAccessGrant, updateAccessGrant, deleteAccessGrant, fetchMascotWeather };
 
 export default { fetch: (request: Request, env: Env, ctx: ExecutionContext) => handleRequest(request, env, defaultDependencies, ctx) } satisfies ExportedHandler<Env>;
 
@@ -127,6 +128,10 @@ export async function handleRequest(request: Request, env: Env, dependencies: Re
     }
     if (request.method === "GET" && url.pathname === "/items") {
       return json({ items: await dependencies.listItems(db, user.uid) }, 200, corsHeaders);
+    }
+    const previewRefreshMatch = url.pathname.match(/^\/items\/([^/]+)\/preview\/refresh$/);
+    if (previewRefreshMatch && request.method === "POST") {
+      return json(await (dependencies.refreshItemPreview ?? defaultDependencies.refreshItemPreview!)(db, user.uid, previewRefreshMatch[1]), 200, corsHeaders);
     }
     if (request.method === "POST" && url.pathname === "/items") {
       return json(await dependencies.createItem(db, user.uid, await readRequestJson(request)), 201, corsHeaders);

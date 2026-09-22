@@ -4,6 +4,7 @@ import { ArrowLeft, Blocks, Check, Copy, EllipsisVertical, Ghost, Globe, Notepad
 import { DropdownMenu, DropdownMenuItem } from "../../components/ui/dropdown-menu";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
 import { INTEGRATIONS_CATEGORY_ID, type CategorySummary, type CloudyItem } from "../../types/api";
+import { refreshItemPreview } from "../../lib/api";
 import { buildCategoryGraphLayout, buildCategoryItemGraphLayout } from "./item-graph";
 import { EMPTY_CATEGORY_COLOR, getCategoryColorStyle } from "./category-colors";
 
@@ -159,7 +160,7 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
                 <span className="category-node-orbit" aria-hidden="true">
                   {category.recentItems.map((preview, previewIndex) => (
                     <span className={`category-node-preview category-node-preview--${previewIndex}`} key={preview.id}>
-                      <FallbackImage src={preview.imageUrl || preview.faviconUrl} alt="" className="category-node-preview-image" loading="lazy" />
+                      <FallbackImage src={preview.imageUrl || preview.faviconUrl} alt="" className="category-node-preview-image" loading="lazy" onImageError={preview.imageUrl ? () => refreshItemPreview(preview.id) : undefined} />
                     </span>
                   ))}
                 </span>
@@ -185,7 +186,7 @@ export function ItemGraph({ categories, items, selectedCategory, isLoading, erro
                 onClick={() => selectionMode ? onItemToggle?.(item) : onItemSelect(item)}
               >
                 {selectionMode && selectedItemIds.includes(item.id) && <span className="item-node-selection-mark" aria-hidden="true"><Check /></span>}
-                <FallbackImage src={item.imageUrl} alt="" className="item-node-image" loading="lazy" />
+                <FallbackImage src={item.imageUrl} alt="" className="item-node-image" loading="lazy" onImageError={item.imageUrl ? () => refreshItemPreview(item.id) : undefined} />
                 <span className="item-node-copy">
                   <strong>{item.name}</strong>
                   <small className="item-node-category" style={getCategoryColorStyle(item.category?.color ?? EMPTY_CATEGORY_COLOR)}><span aria-hidden="true" /><span>{item.category?.name ?? "Vazio"}</span></small>
@@ -327,7 +328,7 @@ export function ItemDetail({ item, open, onClose, onExited, onEdit, onDelete }: 
       <section className="item-detail-panel" data-closing={isClosing || undefined} data-dragging={drawerGesture.isDragging || undefined} style={{ ...drawerGesture.panelStyle, ...getCategoryColorStyle(category?.color ?? EMPTY_CATEGORY_COLOR) }} onAnimationEnd={handleExitAnimationEnd} role="dialog" aria-modal="true" aria-labelledby="item-detail-title" onClick={(event) => event.stopPropagation()} {...drawerGesture.panelProps}>
         <div className="mobile-drawer-handle" aria-hidden="true" />
       <button className="modal-close item-detail-close" type="button" aria-label="Fechar detalhes" onClick={requestClose}><X aria-hidden="true" /></button>
-        <FallbackImage src={item.imageUrl} alt="" className="item-detail-image" />
+        <FallbackImage src={item.imageUrl} alt="" className="item-detail-image" onImageError={item.imageUrl ? () => refreshItemPreview(item.id) : undefined} />
         <div className="item-detail-content">
           <div className="item-detail-source">
             <FallbackImage src={item.faviconUrl} alt="" className="item-detail-favicon" />
@@ -383,12 +384,28 @@ export function ItemDetail({ item, open, onClose, onExited, onEdit, onDelete }: 
   );
 }
 
-export function FallbackImage({ src, alt, className, loading = "lazy" }: { src: string | null; alt: string; className: string; loading?: "lazy" | "eager" }) {
+export function FallbackImage({ src, alt, className, loading = "lazy", onImageError }: { src: string | null; alt: string; className: string; loading?: "lazy" | "eager"; onImageError?: () => Promise<string | null> }) {
   const [imageSrc, setImageSrc] = useState(src || FALLBACK_IMAGE);
+  const refreshAttemptedForUrl = useRef<string | null>(null);
+  const refreshRequestId = useRef(0);
 
   useEffect(() => {
     setImageSrc(src || FALLBACK_IMAGE);
+    refreshAttemptedForUrl.current = null;
+    refreshRequestId.current += 1;
   }, [src]);
 
-  return <img className={className} src={imageSrc} alt={alt} loading={loading} decoding="async" onError={() => setImageSrc(FALLBACK_IMAGE)} />;
+  const handleError = () => {
+    if (imageSrc === FALLBACK_IMAGE || refreshAttemptedForUrl.current === imageSrc) return;
+    const failedUrl = imageSrc;
+    refreshAttemptedForUrl.current = failedUrl;
+    const requestId = ++refreshRequestId.current;
+    setImageSrc(FALLBACK_IMAGE);
+    if (!onImageError) return;
+    void onImageError().then((nextImageUrl) => {
+      if (requestId === refreshRequestId.current && nextImageUrl && nextImageUrl !== failedUrl) setImageSrc(nextImageUrl);
+    }).catch(() => undefined);
+  };
+
+  return <img className={className} src={imageSrc} alt={alt} loading={loading} decoding="async" onError={handleError} />;
 }

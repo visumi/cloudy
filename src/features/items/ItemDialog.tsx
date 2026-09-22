@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type AnimationEvent, type For
 import { createPortal } from "react-dom";
 import { Copy, Globe, LoaderCircle, MoveRight, Pencil, Plus, X } from "lucide-react";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
-import { ApiError, apiRequest } from "../../lib/api";
+import { ApiError, apiRequest, refreshItemPreview } from "../../lib/api";
 import { INTEGRATIONS_CATEGORY_ID, type CategoryRef, type CloudyItem, type ItemPreview } from "../../types/api";
 import { FallbackImage } from "./ItemGraph";
 import { EMPTY_CATEGORY_COLOR, getCategoryColorStyle } from "./category-colors";
@@ -217,7 +217,7 @@ export function ItemDialog({ open, item = null, categoryOptions, onClose, onSave
         </div>
         <form noValidate onSubmit={submit}>
           <div className="item-live-preview" aria-label="Prévia do card">
-            <FallbackImage src={preview?.imageUrl ?? null} alt="" className="item-live-preview-image" />
+            <FallbackImage src={preview?.imageUrl ?? null} alt="" className="item-live-preview-image" onImageError={item?.id && item.url === url.trim() && preview?.imageUrl === item.imageUrl ? () => refreshItemPreview(item.id) : undefined} />
             <div className="item-live-preview-content">
               <div className="item-live-preview-source">
                 <FallbackImage src={preview?.faviconUrl ?? null} alt="" className="item-live-preview-favicon" />

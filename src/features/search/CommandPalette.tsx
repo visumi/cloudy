@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { ArrowRight, Clock3, LoaderCircle, NotepadText, Search, X } from "lucide-react";
 import { useMobileDrawerBodyLock, useMobileDrawerGesture } from "../../components/ui/mobile-drawer";
 import { FallbackImage } from "../items/ItemGraph";
+import { refreshItemPreview } from "../../lib/api";
 import { EMPTY_CATEGORY_COLOR, getCategoryColorStyle } from "../items/category-colors";
 import type { CloudyItem } from "../../types/api";
 
@@ -181,7 +182,7 @@ export function CommandPalette({ open, items, isLoading, error, onClose, onRetry
                     onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => onSelect(item)}
                   >
-                    <FallbackImage src={item.imageUrl || item.faviconUrl} alt="" className="command-result-image" loading="lazy" />
+                    <FallbackImage src={item.imageUrl || item.faviconUrl} alt="" className="command-result-image" loading="lazy" onImageError={item.imageUrl ? () => refreshItemPreview(item.id) : undefined} />
                     <span className="command-result-copy">
                       <strong>{item.name}</strong>
                       <span className="command-result-meta"><span className="command-result-category" style={getCategoryColorStyle(item.category?.color ?? EMPTY_CATEGORY_COLOR)}><span aria-hidden="true" />{item.category?.name ?? "Vazio"}</span></span>

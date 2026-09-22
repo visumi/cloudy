@@ -315,7 +315,7 @@ export async function updateItem(db: Client, userId: string, itemId: string, pay
 
   await db.execute({
     sql: `UPDATE items
-      SET category_id = ?, system_category = ?, name = ?, url = ?, image_url = ?, favicon_url = ?, observation = ?, updated_at = CURRENT_TIMESTAMP
+      SET category_id = ?, system_category = ?, name = ?, url = ?, image_url = ?, favicon_url = ?, observation = ?, preview_refresh_attempted_at = CASE WHEN url IS NOT ? THEN NULL ELSE preview_refresh_attempted_at END, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?`,
     args: [nextCategoryId, nextSystemCategory, input.name, input.url, preview.imageUrl, preview.faviconUrl, input.observation, itemId, userId]
   });
@@ -450,6 +450,43 @@ export async function previewItem(payload: unknown): Promise<ItemPreview> {
   const source = readObject(payload);
   const url = readUrl(source.url);
   return resolveLinkPreview(url);
+}
+
+export async function refreshItemPreview(db: Client, userId: string, itemId: string): Promise<{ imageUrl: string | null }> {
+  const claimed = await db.execute({
+    sql: `UPDATE items
+      SET preview_refresh_attempted_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ? AND url IS NOT NULL
+        AND (preview_refresh_attempted_at IS NULL OR preview_refresh_attempted_at <= datetime('now', '-24 hours'))
+      RETURNING url, image_url`,
+    args: [itemId, userId]
+  });
+  const claimedRow = claimed.rows[0] as DbRow | undefined;
+  if (!claimedRow) {
+    const existing = await db.execute({
+      sql: "SELECT url, image_url FROM items WHERE id = ? AND user_id = ? LIMIT 1",
+      args: [itemId, userId]
+    });
+    const existingRow = existing.rows[0] as DbRow | undefined;
+    if (!existingRow) throw new HttpError(404, "item_not_found");
+    return { imageUrl: readNullableString(existingRow, "image_url") };
+  }
+
+  const url = readNullableString(claimedRow, "url");
+  const currentImageUrl = readNullableString(claimedRow, "image_url");
+  if (!url) return { imageUrl: currentImageUrl };
+
+  const preview = await resolveLinkPreview(url);
+  if (preview.imageUrl) {
+    await db.execute({
+      sql: `UPDATE items SET image_url = ?, favicon_url = COALESCE(?, favicon_url)
+        WHERE id = ? AND user_id = ? AND url = ?`,
+      args: [preview.imageUrl, preview.faviconUrl, itemId, userId, url]
+    });
+    return { imageUrl: preview.imageUrl };
+  }
+
+  return { imageUrl: currentImageUrl };
 }
 
 export async function resolveLinkPreview(sourceUrl: string): Promise<ItemPreview> {
